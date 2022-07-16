@@ -110,6 +110,17 @@ impl Sampler for ADSR {
     }
 }
 
+pub struct Delay {
+    pub delay: f64,
+    pub sampler: Box<dyn Sampler>,
+}
+
+impl Sampler for Delay {
+    fn sample(&self, t: f64) -> f64 {
+        self.sampler.sample(t - self.delay)
+    }
+}
+
 pub struct Player {
     pub events: Vec<(f64, Box<dyn Sampler>)>,
 }
