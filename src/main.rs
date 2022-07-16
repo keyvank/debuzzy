@@ -19,7 +19,7 @@ const A: f64 = 440.0;
 const A_SHARP_B_FLAT: f64 = 466.16;
 const B: f64 = 493.88;
 
-pub trait Sound {
+pub trait Sampler {
     fn sample(&self, t: f64) -> f64;
 }
 
@@ -27,7 +27,7 @@ pub struct Sine {
     pub freq: f64,
 }
 
-impl Sound for Sine {
+impl Sampler for Sine {
     fn sample(&self, t: f64) -> f64 {
         (t * 2.0 * std::f64::consts::PI * self.freq).sin()
     }
@@ -37,7 +37,7 @@ pub struct Square {
     pub freq: f64,
 }
 
-impl Sound for Square {
+impl Sampler for Square {
     fn sample(&self, t: f64) -> f64 {
         if (t * self.freq).floor() as i64 % 2 == 0 {
             1.0
@@ -48,14 +48,14 @@ impl Sound for Square {
 }
 
 pub struct Compound {
-    pub sounds: Vec<(f64, Box<dyn Sound>)>,
+    pub samplers: Vec<(f64, Box<dyn Sampler>)>,
 }
 
-impl Sound for Compound {
+impl Sampler for Compound {
     fn sample(&self, t: f64) -> f64 {
         let mut s = 0f64;
-        for (vol, sound) in self.sounds.iter() {
-            s += sound.sample(t) * vol;
+        for (vol, sampler) in self.samplers.iter() {
+            s += sampler.sample(t) * vol;
         }
         s
     }
@@ -71,12 +71,12 @@ pub struct ADSR {
     pub sustain_length: f64,
     pub release_length: f64,
     pub sustain_level: f64,
-    pub sound: Box<dyn Sound>,
+    pub sampler: Box<dyn Sampler>,
 }
 
-impl Sound for ADSR {
+impl Sampler for ADSR {
     fn sample(&self, t: f64) -> f64 {
-        self.sound.sample(t)
+        self.sampler.sample(t)
             * (if t < self.attack_length {
                 interpolate(0.0, 0.0, self.attack_length, 1.0, t)
             } else if t < self.attack_length + self.decay_length {
@@ -111,25 +111,25 @@ impl Sound for ADSR {
 }
 
 pub struct Player {
-    pub events: Vec<(f64, Box<dyn Sound>)>,
+    pub events: Vec<(f64, Box<dyn Sampler>)>,
 }
 
-impl Sound for Player {
+impl Sampler for Player {
     fn sample(&self, t: f64) -> f64 {
         let mut s = 0f64;
-        for (start, sound) in self.events.iter() {
+        for (start, sampler) in self.events.iter() {
             if t > *start {
-                s += sound.sample(t - start);
+                s += sampler.sample(t - start);
             }
         }
         s
     }
 }
 
-fn note(freq: f64) -> Box<dyn Sound> {
+fn note(freq: f64) -> Box<dyn Sampler> {
     Box::new(ADSR {
-        sound: Box::new(Compound {
-            sounds: vec![
+        sampler: Box::new(Compound {
+            samplers: vec![
                 (0.5, Box::new(Square { freq })),
                 (0.5, Box::new(Sine { freq })),
             ],
