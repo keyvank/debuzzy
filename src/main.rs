@@ -104,8 +104,8 @@ impl Compound {
                 .map(|(d, s)| -> (f64, Box<dyn Sampler>) {
                     (
                         1.0,
-                        Box::new(Delay {
-                            delay: d,
+                        Box::new(Shift {
+                            shift: -d,
                             sampler: s,
                         }),
                     )
@@ -176,14 +176,14 @@ impl Sampler for ADSR {
     }
 }
 
-pub struct Delay {
-    pub delay: f64,
+pub struct Shift {
+    pub shift: f64,
     pub sampler: Box<dyn Sampler>,
 }
 
-impl Sampler for Delay {
+impl Sampler for Shift {
     fn sample(&self, t: f64) -> f64 {
-        self.sampler.sample(t - self.delay)
+        self.sampler.sample(t + self.shift)
     }
 }
 
@@ -207,11 +207,18 @@ struct DummyInstrument;
 impl Instrument for DummyInstrument {
     fn play(note: f64) -> Box<dyn Sampler> {
         Box::new(ADSR {
-            sampler: Box::new(Compound {
-                samplers: vec![
-                    (0.5, Box::new(Square { freq: note })),
-                    (0.5, Box::new(Sine { freq: note })),
-                ],
+            sampler: Box::new(AmplitudeModulator {
+                sampler: Box::new(Compound {
+                    samplers: vec![
+                        (0.5, Box::new(Sine { freq: note })),
+                        (0.05, Box::new(Square { freq: note })),
+                    ],
+                }),
+                modulator: Box::new(Move {
+                    sampler: Box::new(Sine { freq: 4.0 }),
+                    low: 0.3,
+                    high: 1.0,
+                }),
             }),
             attack_length: 0.1,
             decay_length: 2.0,
@@ -225,14 +232,22 @@ impl Instrument for DummyInstrument {
 fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
-    let music = InputShiftModulator {
-        sampler: Box::new(Sine { freq: 600.0 }),
-        modulator: Box::new(Move {
-            sampler: Box::new(Sine { freq: 1.0 }),
-            low: 0.8,
-            high: 1.2,
-        }),
-    };
+    let music = Compound::play(vec![
+        (0.0, DummyInstrument::play(C)),
+        (1.0, DummyInstrument::play(C)),
+        (2.0, DummyInstrument::play(G)),
+        (3.0, DummyInstrument::play(G)),
+        (4.0, DummyInstrument::play(A)),
+        (5.0, DummyInstrument::play(A)),
+        (6.0, DummyInstrument::play(G)),
+        (8.0, DummyInstrument::play(F)),
+        (9.0, DummyInstrument::play(F)),
+        (10.0, DummyInstrument::play(E)),
+        (11.0, DummyInstrument::play(E)),
+        (12.0, DummyInstrument::play(D)),
+        (13.0, DummyInstrument::play(D)),
+        (14.0, DummyInstrument::play(C)),
+    ]);
     let mut t = 0f64;
     loop {
         out(music.sample(t))?;
