@@ -33,6 +33,18 @@ impl Sampler for Sine {
     }
 }
 
+pub struct Move {
+    pub sampler: Box<dyn Sampler>,
+    pub low: f64,
+    pub high: f64,
+}
+
+impl Sampler for Move {
+    fn sample(&self, t: f64) -> f64 {
+        (self.sampler.sample(t) + 1.0) / 2.0 * (self.high - self.low) + self.low
+    }
+}
+
 pub struct Square {
     pub freq: f64,
 }
@@ -44,6 +56,17 @@ impl Sampler for Square {
         } else {
             -1.0
         }
+    }
+}
+
+pub struct AmplitudeModulator {
+    modulator: Box<dyn Sampler>,
+    sampler: Box<dyn Sampler>,
+}
+
+impl Sampler for AmplitudeModulator {
+    fn sample(&self, t: f64) -> f64 {
+        self.sampler.sample(t) * self.modulator.sample(t)
     }
 }
 
@@ -180,22 +203,14 @@ impl Instrument for DummyInstrument {
 fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
-    let music = Compound::play(vec![
-        (0.0, DummyInstrument::play(C)),
-        (1.0, DummyInstrument::play(C)),
-        (2.0, DummyInstrument::play(G)),
-        (3.0, DummyInstrument::play(G)),
-        (4.0, DummyInstrument::play(A)),
-        (5.0, DummyInstrument::play(A)),
-        (6.0, DummyInstrument::play(G)),
-        (8.0, DummyInstrument::play(F)),
-        (9.0, DummyInstrument::play(F)),
-        (10.0, DummyInstrument::play(E)),
-        (11.0, DummyInstrument::play(E)),
-        (12.0, DummyInstrument::play(D)),
-        (13.0, DummyInstrument::play(D)),
-        (14.0, DummyInstrument::play(C)),
-    ]);
+    let music = AmplitudeModulator {
+        sampler: Box::new(Sine { freq: A }),
+        modulator: Box::new(Move {
+            sampler: Box::new(Sine { freq: 5.0 }),
+            low: 0.0,
+            high: 1.0,
+        }),
+    };
     let mut t = 0f64;
     loop {
         out(music.sample(t))?;
