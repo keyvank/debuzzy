@@ -51,6 +51,25 @@ pub struct Compound {
     pub samplers: Vec<(f64, Box<dyn Sampler>)>,
 }
 
+impl Compound {
+    pub fn play(events: Vec<(f64, Box<dyn Sampler>)>) -> Self {
+        Compound {
+            samplers: events
+                .into_iter()
+                .map(|(d, s)| -> (f64, Box<dyn Sampler>) {
+                    (
+                        1.0,
+                        Box::new(Delay {
+                            delay: d,
+                            sampler: s,
+                        }),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
 impl Sampler for Compound {
     fn sample(&self, t: f64) -> f64 {
         let mut s = 0f64;
@@ -77,7 +96,9 @@ pub struct ADSR {
 impl Sampler for ADSR {
     fn sample(&self, t: f64) -> f64 {
         self.sampler.sample(t)
-            * (if t < self.attack_length {
+            * (if t < 0.0 {
+                0.0
+            } else if t < self.attack_length {
                 interpolate(0.0, 0.0, self.attack_length, 1.0, t)
             } else if t < self.attack_length + self.decay_length {
                 interpolate(
@@ -121,22 +142,6 @@ impl Sampler for Delay {
     }
 }
 
-pub struct Player {
-    pub events: Vec<(f64, Box<dyn Sampler>)>,
-}
-
-impl Sampler for Player {
-    fn sample(&self, t: f64) -> f64 {
-        let mut s = 0f64;
-        for (start, sampler) in self.events.iter() {
-            if t > *start {
-                s += sampler.sample(t - start);
-            }
-        }
-        s
-    }
-}
-
 fn note(freq: f64) -> Box<dyn Sampler> {
     Box::new(ADSR {
         sampler: Box::new(Compound {
@@ -156,24 +161,22 @@ fn note(freq: f64) -> Box<dyn Sampler> {
 fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
-    let music = Player {
-        events: vec![
-            (0.0, note(C)),
-            (1.0, note(C)),
-            (2.0, note(G)),
-            (3.0, note(G)),
-            (4.0, note(A)),
-            (5.0, note(A)),
-            (6.0, note(G)),
-            (8.0, note(F)),
-            (9.0, note(F)),
-            (10.0, note(E)),
-            (11.0, note(E)),
-            (12.0, note(D)),
-            (13.0, note(D)),
-            (14.0, note(C)),
-        ],
-    };
+    let music = Compound::play(vec![
+        (0.0, note(C)),
+        (1.0, note(C)),
+        (2.0, note(G)),
+        (3.0, note(G)),
+        (4.0, note(A)),
+        (5.0, note(A)),
+        (6.0, note(G)),
+        (8.0, note(F)),
+        (9.0, note(F)),
+        (10.0, note(E)),
+        (11.0, note(E)),
+        (12.0, note(D)),
+        (13.0, note(D)),
+        (14.0, note(C)),
+    ]);
     let mut t = 0f64;
     loop {
         out(music.sample(t))?;
