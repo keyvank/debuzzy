@@ -142,6 +142,17 @@ impl Sampler for Delay {
     }
 }
 
+pub struct Gain {
+    pub gain: f64,
+    pub sampler: Box<dyn Sampler>,
+}
+
+impl Sampler for Gain {
+    fn sample(&self, t: f64) -> f64 {
+        self.sampler.sample(t) * self.gain
+    }
+}
+
 fn note(freq: f64) -> Box<dyn Sampler> {
     Box::new(ADSR {
         sampler: Box::new(Compound {
