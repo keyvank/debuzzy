@@ -24,7 +24,6 @@ pub trait Sound {
 }
 
 pub struct Sine {
-    pub phase: f64,
     pub freq: f64,
 }
 
@@ -34,15 +33,29 @@ impl Sound for Sine {
     }
 }
 
+pub struct Square {
+    pub freq: f64,
+}
+
+impl Sound for Square {
+    fn sample(&self, t: f64) -> f64 {
+        if (t * self.freq).floor() as i64 % 2 == 0 {
+            1.0
+        } else {
+            -1.0
+        }
+    }
+}
+
 pub struct Compound {
-    pub sounds: Vec<Box<dyn Sound>>,
+    pub sounds: Vec<(f64, Box<dyn Sound>)>,
 }
 
 impl Sound for Compound {
     fn sample(&self, t: f64) -> f64 {
         let mut s = 0f64;
-        for sounds in self.sounds.iter() {
-            s += sounds.sample(t) * 0.33;
+        for (vol, sound) in self.sounds.iter() {
+            s += sound.sample(t) * vol;
         }
         s
     }
@@ -116,7 +129,10 @@ impl Sound for Player {
 fn note(freq: f64) -> Box<dyn Sound> {
     Box::new(ADSR {
         sound: Box::new(Compound {
-            sounds: vec![Box::new(Sine { phase: 0.0, freq })],
+            sounds: vec![
+                (0.5, Box::new(Square { freq })),
+                (0.5, Box::new(Sine { freq })),
+            ],
         }),
         attack_length: 0.1,
         decay_length: 2.0,
