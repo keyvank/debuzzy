@@ -153,40 +153,48 @@ impl Sampler for Gain {
     }
 }
 
-fn note(freq: f64) -> Box<dyn Sampler> {
-    Box::new(ADSR {
-        sampler: Box::new(Compound {
-            samplers: vec![
-                (0.5, Box::new(Square { freq })),
-                (0.5, Box::new(Sine { freq })),
-            ],
-        }),
-        attack_length: 0.1,
-        decay_length: 2.0,
-        sustain_length: 0.0,
-        release_length: 0.2,
-        sustain_level: 0.6,
-    })
+pub trait Instrument {
+    fn play(note: f64) -> Box<dyn Sampler>;
+}
+
+struct DummyInstrument;
+
+impl Instrument for DummyInstrument {
+    fn play(note: f64) -> Box<dyn Sampler> {
+        Box::new(ADSR {
+            sampler: Box::new(Compound {
+                samplers: vec![
+                    (0.5, Box::new(Square { freq: note })),
+                    (0.5, Box::new(Sine { freq: note })),
+                ],
+            }),
+            attack_length: 0.1,
+            decay_length: 2.0,
+            sustain_length: 0.0,
+            release_length: 0.2,
+            sustain_level: 0.6,
+        })
+    }
 }
 
 fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
     let music = Compound::play(vec![
-        (0.0, note(C)),
-        (1.0, note(C)),
-        (2.0, note(G)),
-        (3.0, note(G)),
-        (4.0, note(A)),
-        (5.0, note(A)),
-        (6.0, note(G)),
-        (8.0, note(F)),
-        (9.0, note(F)),
-        (10.0, note(E)),
-        (11.0, note(E)),
-        (12.0, note(D)),
-        (13.0, note(D)),
-        (14.0, note(C)),
+        (0.0, DummyInstrument::play(C)),
+        (1.0, DummyInstrument::play(C)),
+        (2.0, DummyInstrument::play(G)),
+        (3.0, DummyInstrument::play(G)),
+        (4.0, DummyInstrument::play(A)),
+        (5.0, DummyInstrument::play(A)),
+        (6.0, DummyInstrument::play(G)),
+        (8.0, DummyInstrument::play(F)),
+        (9.0, DummyInstrument::play(F)),
+        (10.0, DummyInstrument::play(E)),
+        (11.0, DummyInstrument::play(E)),
+        (12.0, DummyInstrument::play(D)),
+        (13.0, DummyInstrument::play(D)),
+        (14.0, DummyInstrument::play(C)),
     ]);
     let mut t = 0f64;
     loop {
