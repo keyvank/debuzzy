@@ -70,6 +70,28 @@ impl Sampler for AmplitudeModulator {
     }
 }
 
+pub struct InputShiftModulator {
+    modulator: Box<dyn Sampler>,
+    sampler: Box<dyn Sampler>,
+}
+
+impl Sampler for InputShiftModulator {
+    fn sample(&self, t: f64) -> f64 {
+        self.sampler.sample(t + self.modulator.sample(t))
+    }
+}
+
+pub struct InputGainModulator {
+    modulator: Box<dyn Sampler>,
+    sampler: Box<dyn Sampler>,
+}
+
+impl Sampler for InputGainModulator {
+    fn sample(&self, t: f64) -> f64 {
+        self.sampler.sample(t * self.modulator.sample(t))
+    }
+}
+
 pub struct Compound {
     pub samplers: Vec<(f64, Box<dyn Sampler>)>,
 }
@@ -203,12 +225,12 @@ impl Instrument for DummyInstrument {
 fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
-    let music = AmplitudeModulator {
-        sampler: Box::new(Sine { freq: A }),
+    let music = InputShiftModulator {
+        sampler: Box::new(Sine { freq: 600.0 }),
         modulator: Box::new(Move {
-            sampler: Box::new(Sine { freq: 5.0 }),
-            low: 0.0,
-            high: 1.0,
+            sampler: Box::new(Sine { freq: 1.0 }),
+            low: 0.8,
+            high: 1.2,
         }),
     };
     let mut t = 0f64;
