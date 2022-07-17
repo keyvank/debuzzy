@@ -19,6 +19,10 @@ const A: f64 = 440.0;
 const A_SHARP_B_FLAT: f64 = 466.16;
 const B: f64 = 493.88;
 
+fn on_octave(note: f64, octave: u8) -> f64 {
+    note * (2f64.powf(((octave as i8) - 4) as f64))
+}
+
 pub trait Sampler {
     fn sample(&self, t: f64) -> f64;
 }
@@ -199,13 +203,13 @@ impl Sampler for Gain {
 }
 
 pub trait Instrument {
-    fn play(note: f64) -> Box<dyn Sampler>;
+    fn play(note: f64, length: f64) -> Box<dyn Sampler>;
 }
 
 struct DummyInstrument;
 
 impl Instrument for DummyInstrument {
-    fn play(note: f64) -> Box<dyn Sampler> {
+    fn play(note: f64, length: f64) -> Box<dyn Sampler> {
         Box::new(ADSR {
             sampler: Box::new(AmplitudeModulator {
                 sampler: Box::new(Compound {
@@ -218,7 +222,7 @@ impl Instrument for DummyInstrument {
                 }),
             }),
             attack_length: 0.1,
-            decay_length: 2.0,
+            decay_length: length,
             sustain_length: 0.0,
             release_length: 0.6,
             sustain_level: 0.6,
@@ -226,28 +230,84 @@ impl Instrument for DummyInstrument {
     }
 }
 
+use regex::Regex;
+
+use std::collections::HashMap;
+
 fn main() -> Result<(), std::io::Error> {
+    let notes: HashMap<&str, f64> = [
+        ("c", C),
+        ("c+", C_SHARP_D_FLAT),
+        ("d-", C_SHARP_D_FLAT),
+        ("d", D),
+        ("d+", D_SHARP_E_FLAT),
+        ("e-", D_SHARP_E_FLAT),
+        ("e", E),
+        ("f", F),
+        ("f+", F_SHARP_G_FLAT),
+        ("g-", F_SHARP_G_FLAT),
+        ("g", G),
+        ("g+", G_SHARP_A_FLAT),
+        ("a-", G_SHARP_A_FLAT),
+        ("a", A),
+        ("a+", A_SHARP_B_FLAT),
+        ("b-", A_SHARP_B_FLAT),
+        ("b", B),
+        ("p", 0.0),
+        ("r", 0.0),
+    ]
+    .into_iter()
+    .collect();
+
+    const GODFATHER:&'static str = "v110o4t80l8<c>cd+cf2<c>cd+cf2cd+gd+fg+b+g+cd+gd+cd+gd+cd+gd+cd+gd+fg+b+g+fg+b+g+fg+b+g+fg+b+g+cd+gd+cd+gd+<g>cd<bgb>dc-cd+gd+cd+gd+<a+>dfd<a+>dfdd+ga+gd+ga+gc+fg+ffg+b+g+gb>d<bgb>d<bcd+gd+fg+b+g+cd+gd+cd+gd+cd+gd+fg+b+g+fg+b+g+fg+b+g+fg+b+g+fg+b+g+cd+gd+cd+gd+<g>cd<bgb>dc-cd+gd+c4,v120o4r1r2l8r>g>cd+dcd+cdc<g+a+g2rg>cd+dcd+cdc<gf+f2rfg+>cd2r<fg+bb+2rcd+a+g+ga+g+g+ggc-c2r>cc<ba+2>d4c<g+g2rga+gf2rfg+f+g2rg>cd+dcd+cdc.<g+16a+g2rg>cd+dcd+cdc.<g16f+f2rfg+b>d2r<fg+bb+2rcd+a+g+ga+g+g+g.g16b>c2.,v90o4l2<gg+gg+gg+l4gfd+2g2b+d+g+cfl8cd<f>cfg+b+4cd<cg>cd+l2ggfd+4<g4cl16>d.fa+.f4<a+.>fg+.a+4l8<d+a+4.d+>d+gd+l16<f.>c+f.g+4<g+.>df.g+4l8<g>dgdl4grg2g+2gfd+2g2g+d+g+gg+l8cd<f>cfg+b+4cd<cg>cd+l4grg2g2c<gc";
+
+    let mut subsongs :Vec<(f64, Box<dyn Sampler>)>= vec![];
+    for subsong_text in GODFATHER.split(",") {
+        let mut oct = 4;
+        let mut length = 1;
+        let mut tempo = 80;
+        let re = Regex::new(r"(\D\+?\-?\#?)(\d*)").unwrap();
+        let mut music = vec![];
+        let mut time = 0f64;
+        for cap in re.captures_iter(subsong_text) {
+            match cap[1].to_string().as_str() {
+                "o" => {
+                    oct = cap[2].parse().unwrap();
+                }
+                "t" => {
+                    tempo = cap[2].parse().unwrap();
+                }
+                "l" => {
+                    length = cap[2].parse().unwrap();
+                }
+                ">" => {
+                    oct += 1;
+                }
+                "<" => {
+                    oct -= 1;
+                }
+                note => {
+                    if let Some(freq) = notes.get(note) {
+                        let freq = on_octave(*freq, oct);
+                        let l = 320.0 / tempo as f64 / cap[2].parse().unwrap_or(length) as f64;
+                        music.push((time, DummyInstrument::play(freq, l)));
+                        time += l;
+                    }
+                }
+            }
+        }
+        subsongs.push((0.0, Box::new(Compound::play(music))))
+    }
+
+    let music = Compound::play(subsongs);
+
     const SAMPLE_RATE: usize = 44100;
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
-    let music = Compound::play(vec![
-        (0.0, DummyInstrument::play(C)),
-        (1.0, DummyInstrument::play(C)),
-        (2.0, DummyInstrument::play(G)),
-        (3.0, DummyInstrument::play(G)),
-        (4.0, DummyInstrument::play(A)),
-        (5.0, DummyInstrument::play(A)),
-        (6.0, DummyInstrument::play(G)),
-        (8.0, DummyInstrument::play(F)),
-        (9.0, DummyInstrument::play(F)),
-        (10.0, DummyInstrument::play(E)),
-        (11.0, DummyInstrument::play(E)),
-        (12.0, DummyInstrument::play(D)),
-        (13.0, DummyInstrument::play(D)),
-        (14.0, DummyInstrument::play(C)),
-    ]);
     let mut t = 0f64;
     loop {
         out(music.sample(t))?;
         t += SAMPLE_RATE_STEP;
     }
+
+    Ok(())
 }

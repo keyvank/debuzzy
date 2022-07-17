@@ -1,2 +1,2 @@
 play:
-	bash -c "pacat <(cargo run)"
+	bash -c "pacat <(cargo run --release)"
