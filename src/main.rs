@@ -1,7 +1,7 @@
 use std::io::Write;
 
 fn out(sample: f64) -> Result<(), std::io::Error> {
-    let val = (sample * 32767.0) as i16;
+    let val = (sample / 2.0 * 32767.0) as i16;
     std::io::stdout().write(&val.to_le_bytes())?;
     Ok(())
 }
@@ -253,6 +253,8 @@ fn main() -> Result<(), std::io::Error> {
         ("a+", A_SHARP_B_FLAT),
         ("b-", A_SHARP_B_FLAT),
         ("b", B),
+        ("b+", C),
+        ("c-", B),
         ("p", 0.0),
         ("r", 0.0),
     ]
@@ -261,12 +263,12 @@ fn main() -> Result<(), std::io::Error> {
 
     const GODFATHER:&'static str = "v110o4t80l8<c>cd+cf2<c>cd+cf2cd+gd+fg+b+g+cd+gd+cd+gd+cd+gd+cd+gd+fg+b+g+fg+b+g+fg+b+g+fg+b+g+cd+gd+cd+gd+<g>cd<bgb>dc-cd+gd+cd+gd+<a+>dfd<a+>dfdd+ga+gd+ga+gc+fg+ffg+b+g+gb>d<bgb>d<bcd+gd+fg+b+g+cd+gd+cd+gd+cd+gd+fg+b+g+fg+b+g+fg+b+g+fg+b+g+fg+b+g+cd+gd+cd+gd+<g>cd<bgb>dc-cd+gd+c4,v120o4r1r2l8r>g>cd+dcd+cdc<g+a+g2rg>cd+dcd+cdc<gf+f2rfg+>cd2r<fg+bb+2rcd+a+g+ga+g+g+ggc-c2r>cc<ba+2>d4c<g+g2rga+gf2rfg+f+g2rg>cd+dcd+cdc.<g+16a+g2rg>cd+dcd+cdc.<g16f+f2rfg+b>d2r<fg+bb+2rcd+a+g+ga+g+g+g.g16b>c2.,v90o4l2<gg+gg+gg+l4gfd+2g2b+d+g+cfl8cd<f>cfg+b+4cd<cg>cd+l2ggfd+4<g4cl16>d.fa+.f4<a+.>fg+.a+4l8<d+a+4.d+>d+gd+l16<f.>c+f.g+4<g+.>df.g+4l8<g>dgdl4grg2g+2gfd+2g2g+d+g+gg+l8cd<f>cfg+b+4cd<cg>cd+l4grg2g2c<gc";
 
-    let mut subsongs :Vec<(f64, Box<dyn Sampler>)>= vec![];
+    let mut subsongs: Vec<(f64, Box<dyn Sampler>)> = vec![];
     for subsong_text in GODFATHER.split(",") {
         let mut oct = 4;
         let mut length = 1;
         let mut tempo = 80;
-        let re = Regex::new(r"(\D\+?\-?\#?)(\d*)").unwrap();
+        let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
         for cap in re.captures_iter(subsong_text) {
@@ -288,8 +290,10 @@ fn main() -> Result<(), std::io::Error> {
                 }
                 note => {
                     if let Some(freq) = notes.get(note) {
+                        let dotted = &cap[3] == ".";
                         let freq = on_octave(*freq, oct);
-                        let l = 320.0 / tempo as f64 / cap[2].parse().unwrap_or(length) as f64;
+                        let l = 320.0 / tempo as f64 / cap[2].parse().unwrap_or(length) as f64
+                            * if dotted { 1.5 } else { 1.0 };
                         music.push((time, DummyInstrument::play(freq, l)));
                         time += l;
                     }
