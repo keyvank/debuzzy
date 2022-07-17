@@ -209,10 +209,7 @@ impl Instrument for DummyInstrument {
         Box::new(ADSR {
             sampler: Box::new(AmplitudeModulator {
                 sampler: Box::new(Compound {
-                    samplers: vec![
-                        (0.5, Box::new(Sine { freq: note })),
-                        (0.05, Box::new(Square { freq: note })),
-                    ],
+                    samplers: vec![(0.5, Box::new(Sine { freq: note }))],
                 }),
                 modulator: Box::new(Move {
                     sampler: Box::new(Sine { freq: 4.0 }),
@@ -223,7 +220,7 @@ impl Instrument for DummyInstrument {
             attack_length: 0.1,
             decay_length: 2.0,
             sustain_length: 0.0,
-            release_length: 0.2,
+            release_length: 0.6,
             sustain_level: 0.6,
         })
     }
