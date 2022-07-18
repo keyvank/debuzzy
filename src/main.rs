@@ -241,6 +241,8 @@ use regex::Regex;
 
 use std::collections::HashMap;
 
+const STAIRWAY_TO_HEAVEN:&'static str = "t75<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c4.<<a8>f8e8<a8>a8>c8e8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2<<a8b8>c8e8g8>e8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8b8>>c8<g8e8>c8g8<b8g8>g8g16f+16f+8f+2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8b8>c8e8g8>c8<d8a8>d8f+8e8e8e2.<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2.<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a16.>e32c8<b8a8<a8>g8>c8<g8e8>c8g8<b8g8>g8g16f+16f+8f+2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8>g8>c8<g8e8>c8f+8d8<a8>f+8e8e8e2,r2<g+2g2f+2f2&f8>c4.<g8a8a4.a2.&a8g+2g2f+4.>d8<f1g8a8a1&a4d2f2<a2>c2<g2>d8>d8d1&d4<d2f2<a1&a2>>c8c8c1&c4<g+2g2f+2f1g8a8a1&a4g+2g2f+2f1g8a8a1&a4d2f2<a4.b8>c2<g2>d8a8a1&a4d2f2.&f8<b8>c2d2>c8c8c2,r1r1r1o2b8a8a1&a1&a1&a2.b8a8a1&a1&a1&a2.&a8>d8d1&d1&d1&d2.f8f8f1&f1&f1&f2.<b8a8a1&a1&a1&a2.b8a8a1&a1&a1&a2.&a8>d8d1&d1&d1&d2.f8f8f2;";
+
 fn main() -> Result<(), std::io::Error> {
     let notes: HashMap<&str, f64> = [
         ("c", C),
@@ -268,13 +270,11 @@ fn main() -> Result<(), std::io::Error> {
     .into_iter()
     .collect();
 
-    const GODFATHER:&'static str = "v127t90l16rea>c<beb>dc8e8<g+8>e8<aea>c<beb>dc8<a8r4r>ece<a>c<egf8a8>d8f8.d<b>d<gbdfe8g8>c8e8.c<a>c<f8>d8.<bgbe8>c8.<afad8b8>c4r4<rg>ced<g>dfe8g8<b8>g8c<g>ced<g>dfe8c8g8e8>c<aeace<a>cd8f+8a8>c8<bgdg<b>d<gb>c8e8g8b8af+d+f+<b>d<f+ag8>g8.ece<a8>f+8.d<b>d<g8>e8.c<a>c<f+>gf+ed+f+<b>d+e4r4<<e2,l16o2a8>a4g+8aea>c<beb>dc8<a8g+8e8aea>c<beb>dc8<a8>c8<a8>d<afadf<a>c<b8>d8g8b8.gegce<gba8>c8df<b>d<g8b8>ce<a>c<f8d8g>gfgcg>ced<g>dfe8c8<b8g8>c<g>ged<g>dfe8c8r4rgegce<gba8>c8e8g8f+adf+<a>d<f+ag8b8>d8f+8egce<g>c<egf+8a8b8>d+8rece<a>cegf+d<b>d<gb>df+ec<a>c<f+a>c8.<b>c<ab8<b8>e>e<bge<bgbe2";
-
     let mut subsongs: Vec<(f64, Box<dyn Sampler>)> = vec![];
-    for subsong_text in GODFATHER.replace("#", "+").split(",") {
-        let mut oct = 4;
-        let mut length = 1;
-        let mut tempo = 80;
+    let mut oct = 4;
+    let mut length = 1;
+    let mut tempo = 80;
+    for subsong_text in STAIRWAY_TO_HEAVEN.replace("#", "+").split(",") {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
@@ -295,12 +295,14 @@ fn main() -> Result<(), std::io::Error> {
                 "<" => {
                     oct -= 1;
                 }
+                "&" => {}
                 note => {
                     if let Some(freq) = notes.get(note) {
                         let dotted = &cap[3] == ".";
                         let freq = on_octave(*freq, oct);
-                        let l = 320.0 / tempo as f64 / cap[2].parse().unwrap_or(length) as f64
-                            * if dotted { 1.5 } else { 1.0 };
+                        let l =
+                            320.0 / (tempo as f64) / cap[2].parse::<f64>().unwrap_or(length as f64)
+                                * if dotted { 1.5 } else { 1.0 };
                         music.push((time, DummyInstrument::play(freq, l)));
                         time += l;
                     }
@@ -319,6 +321,4 @@ fn main() -> Result<(), std::io::Error> {
         out(music.sample(t))?;
         t += SAMPLE_RATE_STEP;
     }
-
-    Ok(())
 }
