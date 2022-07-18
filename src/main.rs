@@ -213,27 +213,33 @@ impl Instrument for DummyInstrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
         Box::new(Gain {
             sampler: Box::new(ADSR {
-                sampler: Box::new(AmplitudeModulator {
-                    sampler: Box::new(Compound {
-                        samplers: vec![
-                            (0.3, Box::new(Sine { freq: note })),
-                            (0.15, Box::new(Sine { freq: note * 2.0 })),
-                            (0.15, Box::new(Sine { freq: note / 2.0 })),
-                            (0.075, Box::new(Sine { freq: note * 4.0 })),
-                            (0.075, Box::new(Sine { freq: note / 4.0 })),
-                        ],
+                sampler: Box::new(InputShiftModulator {
+                    sampler: Box::new(AmplitudeModulator {
+                        sampler: Box::new(Compound {
+                            samplers: vec![
+                                (0.3, Box::new(Square { freq: note * 4.0 })),
+                                (0.3, Box::new(Sine { freq: note / 2.0 })),
+                                (0.1, Box::new(Sine { freq: note * 2.0 })),
+                                (0.1, Box::new(Square { freq: note / 4.0 })),
+                            ],
+                        }),
+                        modulator: Box::new(Move {
+                            sampler: Box::new(Sine { freq: 4.0 }),
+                            low: 0.3,
+                            high: 1.0,
+                        }),
                     }),
                     modulator: Box::new(Move {
-                        sampler: Box::new(Sine { freq: 4.0 }),
-                        low: 0.3,
-                        high: 1.0,
+                        sampler: Box::new(Sine { freq: 10.0 }),
+                        low: -0.0003,
+                        high: 0.0003,
                     }),
                 }),
-                attack_length: 0.1,
-                decay_length: length,
-                sustain_length: 0.0,
-                release_length: 0.6,
-                sustain_level: 0.6,
+                attack_length: 0.05,
+                decay_length: 0.05,
+                sustain_length: length,
+                release_length: 2.0,
+                sustain_level: 0.1,
             }),
             gain: volume,
         })
@@ -286,7 +292,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut length = 1;
     let mut tempo = 80;
     let mut volume = 120;
-    for subsong_text in SMOKE_ON_THE_WATER
+    for subsong_text in STAIRWAY_TO_HEAVEN
         .replace("#", "+")
         .to_lowercase()
         .split(",")
