@@ -241,6 +241,10 @@ use regex::Regex;
 
 use std::collections::HashMap;
 
+const AIR_ON_G_STRING:&'static str = "t33>e1&e8a16f16e32d32c16<b16>c16<b4a16g8.>g2&g16e16<a+16a16>d16c+16g16f16f2&f16d16<a16g16>c16<b16>f16e16e4.f+16g16c8c32d32e8d16d16c16<b16a16a32b32>c8.<b16a16g2>e1&e8a16f16e32d32c16<b16>c16<b4a16g8.>g2&g16e16<a+16a16>d16c+16g16f16f2&f16d16<a16g16>c16<b16>f16e16e4.f+16g16c8c32d32e8d16d16c16<b16a16a32b32>c8.<b16a16g4.&g16,<c8>c8<b8<b8a8>a8g8<g8f8>f8f+8<f+8g8>g8f8<f8e8>e8d8<d8c+8>c+8<a8>a8<d8>d8c8<c8<b8>b8g8>g8c8>c8<b8<b8a8>a8f+8d8g8c8d8<d8g16a16b16>c16d16f16e16d16c8>c8<b8<b8a8>a8g8<g8f8>f8f+8<f+8g8>g8f8<f8e8>e8d8<d8c+8>c+8<a8>a8<d8>d8c8<c8<b8>b8g8>g8c8>c8<b8<b8a8>a8f+8d8g8c8d8<d8g4.&g16";
+
+const MARIO:&'static str = "T180V110L16>c8dre-rfrgrr8>crr8<b-rr8grr8ab-a4.b-8r8grarb-8r8arfrdrr8e-rr8de-d4r8c8dre-rfre-8r8dre-rf4e-rdrc2f8r8e-rdrc8r8dre-rf8r8e-rfrg2,O4crrrgrrrcrrrgrrrcrrrgrrrfrrr>crrr<<e-rrrb-rrre-rrrb-rrrfrrr>crrr<b-rrr>frrr<a-rrr>e-rrr<a-rrr>e-rrr<a-rrr>e-rrr<a-rrr>e-rrr<b-rrr>frrr<b-rrr>frrr<b-rrr>frrr<grrr>drrr";
+
 const STAIRWAY_TO_HEAVEN:&'static str = "t75<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c4.<<a8>f8e8<a8>a8>c8e8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2<<a8b8>c8e8g8>e8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8b8>>c8<g8e8>c8g8<b8g8>g8g16f+16f+8f+2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8b8>c8e8g8>c8<d8a8>d8f+8e8e8e2.<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2.<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a16.>e32c8<b8a8<a8>g8>c8<g8e8>c8g8<b8g8>g8g16f+16f+8f+2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8>g8>c8<g8e8>c8f+8d8<a8>f+8e8e8e2,r2<g+2g2f+2f2&f8>c4.<g8a8a4.a2.&a8g+2g2f+4.>d8<f1g8a8a1&a4d2f2<a2>c2<g2>d8>d8d1&d4<d2f2<a1&a2>>c8c8c1&c4<g+2g2f+2f1g8a8a1&a4g+2g2f+2f1g8a8a1&a4d2f2<a4.b8>c2<g2>d8a8a1&a4d2f2.&f8<b8>c2d2>c8c8c2,r1r1r1o2b8a8a1&a1&a1&a2.b8a8a1&a1&a1&a2.&a8>d8d1&d1&d1&d2.f8f8f1&f1&f1&f2.<b8a8a1&a1&a1&a2.b8a8a1&a1&a1&a2.&a8>d8d1&d1&d1&d2.f8f8f2;";
 
 fn main() -> Result<(), std::io::Error> {
@@ -274,7 +278,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut oct = 4;
     let mut length = 1;
     let mut tempo = 80;
-    for subsong_text in STAIRWAY_TO_HEAVEN.replace("#", "+").split(",") {
+    for subsong_text in MARIO.replace("#", "+").to_lowercase().split(",") {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
