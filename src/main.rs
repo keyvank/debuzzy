@@ -247,6 +247,8 @@ const MARIO:&'static str = "T180V110L16>c8dre-rfrgrr8>crr8<b-rr8grr8ab-a4.b-8r8g
 
 const STAIRWAY_TO_HEAVEN:&'static str = "t75<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c4.<<a8>f8e8<a8>a8>c8e8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2<<a8b8>c8e8g8>e8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8b8>>c8<g8e8>c8g8<b8g8>g8g16f+16f+8f+2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8b8>c8e8g8>c8<d8a8>d8f+8e8e8e2.<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2.<a8>c8e8a8b8e8c8b8>c8<e8c8>c8<f+8d8<a8>f+8e8c8<a8>c4e8c8<a8b8>c8c2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a16.>e32c8<b8a8<a8>g8>c8<g8e8>c8g8<b8g8>g8g16f+16f+8f+2<<a8b8>c8e8g8>c8f+8d8<a8>f+8e8c8<a8>e8<b8a8<a8>g8>c8<g8e8>c8f+8d8<a8>f+8e8e8e2,r2<g+2g2f+2f2&f8>c4.<g8a8a4.a2.&a8g+2g2f+4.>d8<f1g8a8a1&a4d2f2<a2>c2<g2>d8>d8d1&d4<d2f2<a1&a2>>c8c8c1&c4<g+2g2f+2f1g8a8a1&a4g+2g2f+2f1g8a8a1&a4d2f2<a4.b8>c2<g2>d8a8a1&a4d2f2.&f8<b8>c2d2>c8c8c2,r1r1r1o2b8a8a1&a1&a1&a2.b8a8a1&a1&a1&a2.&a8>d8d1&d1&d1&d2.f8f8f1&f1&f1&f2.<b8a8a1&a1&a1&a2.b8a8a1&a1&a1&a2.&a8>d8d1&d1&d1&d2.f8f8f2;";
 
+const SMOKE_ON_THE_WATER:&'static str = "v127l8t112gra#r>c4<rgra#r>c#c4<r4gra#r>c4<ra#rg2r4.gra#r>c4<rgra#r>c#c4<r4gra#r>c4<ra#rg2r4.gra#r>c4<rgra#r>c#c4<r4gra#r>c4<ra#rg2r4.gra#r>c4<rgra#r>c#c4<r4gra#r>c4<ra#rg2r4.,r1r1r1r1l8v127t112drfrg4rdrfrg#g4r4drfrg4rfrd2r4.drfrg4rdrfrg#g4r4drfrg4rfrd2r4.drfrg4rdrfrg#g4r4drfrg4rfrd2r4.,v127t112r1r1r1r1r1r1r1r2l8r<<<eff#gggggggggggggggggggg>ccc<a#4>c<ggggff#gggggggggggggggggggg>ccc<a#4>c<ggggg4";
+
 fn main() -> Result<(), std::io::Error> {
     let notes: HashMap<&str, f64> = [
         ("c", C),
@@ -278,7 +280,11 @@ fn main() -> Result<(), std::io::Error> {
     let mut oct = 4;
     let mut length = 1;
     let mut tempo = 80;
-    for subsong_text in MARIO.replace("#", "+").to_lowercase().split(",") {
+    for subsong_text in SMOKE_ON_THE_WATER
+        .replace("#", "+")
+        .to_lowercase()
+        .split(",")
+    {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
