@@ -144,27 +144,28 @@ pub struct ADSR {
 
 impl Sampler for ADSR {
     fn sample(&self, t: f64) -> f64 {
-        self.sampler.sample(t)
-            * (if t < 0.0 {
-                0.0
-            } else if t < self.attack_length {
-                interpolate(0.0, 0.0, self.attack_length, 1.0, t)
-            } else if t < self.attack_length + self.decay_length {
-                interpolate(
+        if t < 0.0 {
+            0.0
+        } else if t < self.attack_length {
+            self.sampler.sample(t) * interpolate(0.0, 0.0, self.attack_length, 1.0, t)
+        } else if t < self.attack_length + self.decay_length {
+            self.sampler.sample(t)
+                * interpolate(
                     self.attack_length,
                     1.0,
                     self.attack_length + self.decay_length,
                     self.sustain_level,
                     t,
                 )
-            } else if t < self.attack_length + self.decay_length + self.sustain_length {
-                self.sustain_level
-            } else if t < self.attack_length
-                + self.decay_length
-                + self.sustain_length
-                + self.release_length
-            {
-                interpolate(
+        } else if t < self.attack_length + self.decay_length + self.sustain_length {
+            self.sampler.sample(t) * self.sustain_level
+        } else if t < self.attack_length
+            + self.decay_length
+            + self.sustain_length
+            + self.release_length
+        {
+            self.sampler.sample(t)
+                * interpolate(
                     self.attack_length + self.decay_length + self.sustain_length,
                     self.sustain_level,
                     self.attack_length
@@ -174,9 +175,9 @@ impl Sampler for ADSR {
                     0.0,
                     t,
                 )
-            } else {
-                0.0
-            })
+        } else {
+            0.0
+        }
     }
 }
 
@@ -213,7 +214,13 @@ impl Instrument for DummyInstrument {
         Box::new(ADSR {
             sampler: Box::new(AmplitudeModulator {
                 sampler: Box::new(Compound {
-                    samplers: vec![(0.5, Box::new(Sine { freq: note }))],
+                    samplers: vec![
+                        (0.3, Box::new(Sine { freq: note })),
+                        (0.15, Box::new(Sine { freq: note * 2.0 })),
+                        (0.15, Box::new(Sine { freq: note / 2.0 })),
+                        (0.075, Box::new(Sine { freq: note * 4.0 })),
+                        (0.075, Box::new(Sine { freq: note / 4.0 })),
+                    ],
                 }),
                 modulator: Box::new(Move {
                     sampler: Box::new(Sine { freq: 4.0 }),
@@ -261,10 +268,10 @@ fn main() -> Result<(), std::io::Error> {
     .into_iter()
     .collect();
 
-    const GODFATHER:&'static str = "v110o4t80l8<c>cd+cf2<c>cd+cf2cd+gd+fg+b+g+cd+gd+cd+gd+cd+gd+cd+gd+fg+b+g+fg+b+g+fg+b+g+fg+b+g+cd+gd+cd+gd+<g>cd<bgb>dc-cd+gd+cd+gd+<a+>dfd<a+>dfdd+ga+gd+ga+gc+fg+ffg+b+g+gb>d<bgb>d<bcd+gd+fg+b+g+cd+gd+cd+gd+cd+gd+fg+b+g+fg+b+g+fg+b+g+fg+b+g+fg+b+g+cd+gd+cd+gd+<g>cd<bgb>dc-cd+gd+c4,v120o4r1r2l8r>g>cd+dcd+cdc<g+a+g2rg>cd+dcd+cdc<gf+f2rfg+>cd2r<fg+bb+2rcd+a+g+ga+g+g+ggc-c2r>cc<ba+2>d4c<g+g2rga+gf2rfg+f+g2rg>cd+dcd+cdc.<g+16a+g2rg>cd+dcd+cdc.<g16f+f2rfg+b>d2r<fg+bb+2rcd+a+g+ga+g+g+g.g16b>c2.,v90o4l2<gg+gg+gg+l4gfd+2g2b+d+g+cfl8cd<f>cfg+b+4cd<cg>cd+l2ggfd+4<g4cl16>d.fa+.f4<a+.>fg+.a+4l8<d+a+4.d+>d+gd+l16<f.>c+f.g+4<g+.>df.g+4l8<g>dgdl4grg2g+2gfd+2g2g+d+g+gg+l8cd<f>cfg+b+4cd<cg>cd+l4grg2g2c<gc";
+    const GODFATHER:&'static str = "v127t90l16rea>c<beb>dc8e8<g+8>e8<aea>c<beb>dc8<a8r4r>ece<a>c<egf8a8>d8f8.d<b>d<gbdfe8g8>c8e8.c<a>c<f8>d8.<bgbe8>c8.<afad8b8>c4r4<rg>ced<g>dfe8g8<b8>g8c<g>ced<g>dfe8c8g8e8>c<aeace<a>cd8f+8a8>c8<bgdg<b>d<gb>c8e8g8b8af+d+f+<b>d<f+ag8>g8.ece<a8>f+8.d<b>d<g8>e8.c<a>c<f+>gf+ed+f+<b>d+e4r4<<e2,l16o2a8>a4g+8aea>c<beb>dc8<a8g+8e8aea>c<beb>dc8<a8>c8<a8>d<afadf<a>c<b8>d8g8b8.gegce<gba8>c8df<b>d<g8b8>ce<a>c<f8d8g>gfgcg>ced<g>dfe8c8<b8g8>c<g>ged<g>dfe8c8r4rgegce<gba8>c8e8g8f+adf+<a>d<f+ag8b8>d8f+8egce<g>c<egf+8a8b8>d+8rece<a>cegf+d<b>d<gb>df+ec<a>c<f+a>c8.<b>c<ab8<b8>e>e<bge<bgbe2";
 
     let mut subsongs: Vec<(f64, Box<dyn Sampler>)> = vec![];
-    for subsong_text in GODFATHER.split(",") {
+    for subsong_text in GODFATHER.replace("#", "+").split(",") {
         let mut oct = 4;
         let mut length = 1;
         let mut tempo = 80;
