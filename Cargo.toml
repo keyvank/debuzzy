@@ -8,3 +8,5 @@ edition = "2021"
 [dependencies]
 dyn-clone = "1.0.8"
 regex = "1.6.0"
+rayon = "1.5.3"
+lazy_static = "1.4"

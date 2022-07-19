@@ -1,4 +1,5 @@
 use dyn_clone::DynClone;
+use rayon::prelude::*;
 use std::io::Write;
 
 fn out(sample: f64) -> Result<(), std::io::Error> {
@@ -24,11 +25,22 @@ fn on_octave(note: f64, octave: u8) -> f64 {
     note * (2f64.powf(((octave as i8) - 4) as f64))
 }
 
-pub trait Sampler: DynClone {
+pub trait Sampler: DynClone + Send + Sync {
     fn sample(&self, t: f64) -> f64;
 }
 
 dyn_clone::clone_trait_object!(Sampler);
+
+#[derive(Clone)]
+pub struct Const {
+    pub val: f64,
+}
+
+impl Sampler for Const {
+    fn sample(&self, _t: f64) -> f64 {
+        self.val
+    }
+}
 
 #[derive(Clone)]
 pub struct Sine {
@@ -261,6 +273,56 @@ impl Sampler for Gain {
     }
 }
 
+#[derive(Clone)]
+pub struct Filter {
+    pub step: f64,
+    pub sampler: Box<dyn Sampler>,
+}
+
+lazy_static::lazy_static! {
+     static ref CONCERT_HALL_FILTER: Vec<f64> = std::fs::read("hall.raw")
+         .unwrap()
+         .chunks(2)
+         .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+         .map(|i| (i as f64) / 32767.0)
+         .collect();
+}
+
+impl Filter {
+    fn read(sampler: Box<dyn Sampler>, path: &str) -> Self {
+        Self {
+            sampler,
+            step: 1.0 / 44100.0,
+        }
+    }
+}
+impl Sampler for Filter {
+    fn sample(&self, t: f64) -> f64 {
+        if t > -2.0 && t < 2.0 {
+            let sm: f64 = CONCERT_HALL_FILTER
+                .par_iter()
+                .enumerate()
+                .map(|(i, v)| v * self.sampler.sample(t - (i as f64 * self.step)))
+                .sum();
+            sm
+        } else {
+            0.0
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Impulse;
+impl Sampler for Impulse {
+    fn sample(&self, t: f64) -> f64 {
+        if t > 0.01 && t < 0.01 {
+            1.0
+        } else {
+            0.0
+        }
+    }
+}
+
 pub trait Instrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler>;
 }
@@ -268,6 +330,22 @@ pub trait Instrument {
 struct DummyInstrument;
 
 impl Instrument for DummyInstrument {
+    fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
+        let snd = Box::new(ADSR {
+            sampler: Box::new(Sine { freq: note }),
+            attack_length: 0.1,
+            decay_length: 0.1,
+            sustain_length: 0.0,
+            release_length: 0.1,
+            sustain_level: 1.0,
+        });
+        Box::new(Filter::read(snd, "example.raw"))
+    }
+}
+
+struct LegitInstrument;
+
+impl Instrument for LegitInstrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
         Box::new(Gain {
             sampler: Box::new(ADSR {
@@ -299,7 +377,7 @@ use regex::Regex;
 
 use std::collections::HashMap;
 
-const AIR_ON_G_STRING:&'static str = "t33>e1&e8a16f16e32d32c16<b16>c16<b4a16g8.>g2&g16e16<a+16a16>d16c+16g16f16f2&f16d16<a16g16>c16<b16>f16e16e4.f+16g16c8c32d32e8d16d16c16<b16a16a32b32>c8.<b16a16g2>e1&e8a16f16e32d32c16<b16>c16<b4a16g8.>g2&g16e16<a+16a16>d16c+16g16f16f2&f16d16<a16g16>c16<b16>f16e16e4.f+16g16c8c32d32e8d16d16c16<b16a16a32b32>c8.<b16a16g4.&g16,<c8>c8<b8<b8a8>a8g8<g8f8>f8f+8<f+8g8>g8f8<f8e8>e8d8<d8c+8>c+8<a8>a8<d8>d8c8<c8<b8>b8g8>g8c8>c8<b8<b8a8>a8f+8d8g8c8d8<d8g16a16b16>c16d16f16e16d16c8>c8<b8<b8a8>a8g8<g8f8>f8f+8<f+8g8>g8f8<f8e8>e8d8<d8c+8>c+8<a8>a8<d8>d8c8<c8<b8>b8g8>g8c8>c8<b8<b8a8>a8f+8d8g8c8d8<d8g4.&g16";
+const AIR_ON_G_STRING: &'static str = "t33>e1&e8a16f16e32d32c16<b16>c16<b4a16g8.>g2&g16e16<a+16a16>d16c+16g16f16f2&f16d16<a16g16>c16<b16>f16e16e4.f+16g16c8c32d32e8d16d16c16<b16a16a32b32>c8.<b16a16g2>e1&e8a16f16e32d32c16<b16>c16<b4a16g8.>g2&g16e16<a+16a16>d16c+16g16f16f2&f16d16<a16g16>c16<b16>f16e16e4.f+16g16c8c32d32e8d16d16c16<b16a16a32b32>c8.<b16a16g4.&g16,<c8>c8<b8<b8a8>a8g8<g8f8>f8f+8<f+8g8>g8f8<f8e8>e8d8<d8c+8>c+8<a8>a8<d8>d8c8<c8<b8>b8g8>g8c8>c8<b8<b8a8>a8f+8d8g8c8d8<d8g16a16b16>c16d16f16e16d16c8>c8<b8<b8a8>a8g8<g8f8>f8f+8<f+8g8>g8f8<f8e8>e8d8<d8c+8>c+8<a8>a8<d8>d8c8<c8<b8>b8g8>g8c8>c8<b8<b8a8>a8f+8d8g8c8d8<d8g4.&g16";
 
 const MARIO:&'static str = "T180V110L16>c8dre-rfrgrr8>crr8<b-rr8grr8ab-a4.b-8r8grarb-8r8arfrdrr8e-rr8de-d4r8c8dre-rfre-8r8dre-rf4e-rdrc2f8r8e-rdrc8r8dre-rf8r8e-rfrg2,O4crrrgrrrcrrrgrrrcrrrgrrrfrrr>crrr<<e-rrrb-rrre-rrrb-rrrfrrr>crrr<b-rrr>frrr<a-rrr>e-rrr<a-rrr>e-rrr<a-rrr>e-rrr<a-rrr>e-rrr<b-rrr>frrr<b-rrr>frrr<b-rrr>frrr<grrr>drrr";
 
@@ -373,7 +451,7 @@ fn main() -> Result<(), std::io::Error> {
                         let l =
                             320.0 / (tempo as f64) / cap[2].parse::<f64>().unwrap_or(length as f64)
                                 * if dotted { 1.5 } else { 1.0 };
-                        music.push((time, DummyInstrument::play(freq, l, volume as f64 / 200.0)));
+                        music.push((time, LegitInstrument::play(freq, l, volume as f64 / 200.0)));
                         time += l;
                     }
                 }
