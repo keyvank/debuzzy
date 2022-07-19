@@ -327,16 +327,12 @@ impl Filter {
 }
 impl Sampler for Filter {
     fn sample(&self, t: f64) -> f64 {
-        if t > -2.0 && t < 2.0 {
-            let sm: f64 = CONCERT_HALL_FILTER
-                .par_iter()
-                .enumerate()
-                .map(|(i, v)| v * self.sampler.sample(t - (i as f64 * self.step)))
-                .sum();
-            sm
-        } else {
-            0.0
-        }
+        let sm: f64 = CONCERT_HALL_FILTER
+            .par_iter()
+            .enumerate()
+            .map(|(i, v)| v * self.sampler.sample(t - (i as f64 * self.step)))
+            .sum();
+        sm
     }
 }
 
@@ -391,11 +387,11 @@ impl Instrument for LegitInstrument {
                         high: 1.0,
                     }),
                 }),
-                attack_length: 0.5,
-                decay_length: length / 3.0,
-                sustain_length: length / 3.0,
-                release_length: length / 3.0,
-                sustain_level: 0.5,
+                attack_length: 0.1,
+                decay_length: 0.1,
+                sustain_length: 0.0,
+                release_length: 0.1,
+                sustain_level: 1.0,
             }),
             gain: volume,
         })
@@ -494,6 +490,8 @@ fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
 
     let music = Record::record(music, SAMPLE_RATE as f64, 10.0);
+
+    let music = Filter::read(Box::new(music), "hall.raw");
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
     let mut t = 0f64;
