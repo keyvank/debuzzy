@@ -1,9 +1,41 @@
 use dyn_clone::DynClone;
 use rayon::prelude::*;
+use realfft::RealFftPlanner;
+use rustfft::{num_complex::Complex, FftPlanner};
 use std::io::Write;
 
+fn fft(vals: &[f64]) -> Vec<Complex<f64>> {
+    let mut real_planner = RealFftPlanner::<f64>::new();
+
+    let r2c = real_planner.plan_fft_forward(vals.len());
+    let mut indata = r2c.make_input_vec();
+
+    let mut spectrum = r2c.make_output_vec();
+
+    assert_eq!(indata.len(), vals.len());
+    assert_eq!(spectrum.len(), vals.len() / 2 + 1);
+
+    indata.copy_from_slice(vals);
+    r2c.process(&mut indata, &mut spectrum).unwrap();
+    spectrum
+}
+
+fn ifft(vals: &Vec<Complex<f64>>) -> Vec<f64> {
+    let mut vals = vals.clone();
+    let length = (vals.len() - 1) * 2;
+    let mut real_planner = RealFftPlanner::<f64>::new();
+    let c2r = real_planner.plan_fft_inverse(length);
+    let mut outdata = c2r.make_output_vec();
+    assert_eq!(outdata.len(), length);
+
+    c2r.process(&mut vals, &mut outdata).unwrap();
+
+    let norm = 1.0 / (length as f64);
+    outdata.into_iter().map(|v| v * norm).collect()
+}
+
 fn out(sample: f64) -> Result<(), std::io::Error> {
-    let val = (sample / 2.0 * 32767.0) as i16;
+    let val = (sample * 32767.0) as i16;
     std::io::stdout().write(&val.to_le_bytes())?;
     Ok(())
 }
@@ -57,10 +89,29 @@ impl Record {
             samples.push(sampler.sample(t));
             t += step;
         }
+
         Self {
             sample_rate,
             samples,
         }
+    }
+    fn apply_filter(&mut self, filter_fft: &Vec<Complex<f64>>) {
+        let mut padded = self.samples.clone();
+        let chunklen = CONCERT_HALL_FILTER.len();
+        while padded.len() % chunklen != 0 {
+            padded.push(0.0);
+        }
+
+        for data in padded.chunks_mut(chunklen) {
+            let mut data_fft = fft(data);
+            data_fft
+                .iter_mut()
+                .zip(filter_fft.iter())
+                .for_each(|(d, f)| *d *= f);
+            let filtered = ifft(&data_fft);
+            data.copy_from_slice(&filtered);
+        }
+        self.samples = padded;
     }
 }
 
@@ -309,12 +360,18 @@ pub struct Filter {
 }
 
 lazy_static::lazy_static! {
-     static ref CONCERT_HALL_FILTER: Vec<f64> = std::fs::read("hall.raw")
+     static ref CONCERT_HALL_FILTER: Vec<f64> ={
+         let mut v:Vec<f64> = std::fs::read("hall.raw")
          .unwrap()
          .chunks(2)
          .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
          .map(|i| (i as f64) / 32767.0)
          .collect();
+         v
+     };
+     static ref CONCERT_HALL_FILTER_FFTS: Vec<Complex<f64>> ={
+         fft(&CONCERT_HALL_FILTER)
+     };
 }
 
 impl Filter {
@@ -357,14 +414,17 @@ struct DummyInstrument;
 impl Instrument for DummyInstrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
         let snd = Box::new(ADSR {
-            sampler: Box::new(Sine { freq: note }),
+            sampler: Box::new(Sawtooth { freq: note }),
             attack_length: 0.1,
             decay_length: 0.1,
             sustain_length: 0.0,
             release_length: 0.1,
             sustain_level: 1.0,
         });
-        Box::new(Filter::read(snd, "example.raw"))
+        Box::new(Gain {
+            sampler: snd,
+            gain: 0.5,
+        })
     }
 }
 
@@ -444,7 +504,11 @@ fn main() -> Result<(), std::io::Error> {
     let mut length = 1;
     let mut tempo = 80;
     let mut volume = 120;
-    for subsong_text in AIR_ON_G_STRING.replace("#", "+").to_lowercase().split(",") {
+    for subsong_text in SMOKE_ON_THE_WATER
+        .replace("#", "+")
+        .to_lowercase()
+        .split(",")
+    {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
@@ -476,7 +540,7 @@ fn main() -> Result<(), std::io::Error> {
                         let l =
                             320.0 / (tempo as f64) / cap[2].parse::<f64>().unwrap_or(length as f64)
                                 * if dotted { 1.5 } else { 1.0 };
-                        music.push((time, LegitInstrument::play(freq, l, volume as f64 / 200.0)));
+                        music.push((time, DummyInstrument::play(freq, l, volume as f64 / 200.0)));
                         time += l;
                     }
                 }
@@ -489,9 +553,8 @@ fn main() -> Result<(), std::io::Error> {
 
     const SAMPLE_RATE: usize = 44100;
 
-    let music = Record::record(music, SAMPLE_RATE as f64, 10.0);
-
-    let music = Filter::read(Box::new(music), "hall.raw");
+    let mut music = Record::record(music, SAMPLE_RATE as f64, 40.0);
+    music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
     let mut t = 0f64;
