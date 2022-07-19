@@ -1,3 +1,4 @@
+use dyn_clone::DynClone;
 use std::io::Write;
 
 fn out(sample: f64) -> Result<(), std::io::Error> {
@@ -23,10 +24,13 @@ fn on_octave(note: f64, octave: u8) -> f64 {
     note * (2f64.powf(((octave as i8) - 4) as f64))
 }
 
-pub trait Sampler {
+pub trait Sampler: DynClone {
     fn sample(&self, t: f64) -> f64;
 }
 
+dyn_clone::clone_trait_object!(Sampler);
+
+#[derive(Clone)]
 pub struct Sine {
     pub freq: f64,
 }
@@ -37,6 +41,19 @@ impl Sampler for Sine {
     }
 }
 
+#[derive(Clone)]
+pub struct Sawtooth {
+    pub freq: f64,
+}
+
+impl Sampler for Sawtooth {
+    fn sample(&self, t: f64) -> f64 {
+        let t = t * self.freq;
+        (t - t.floor()) * 2.0 - 1.0
+    }
+}
+
+#[derive(Clone)]
 pub struct Move {
     pub sampler: Box<dyn Sampler>,
     pub low: f64,
@@ -49,6 +66,7 @@ impl Sampler for Move {
     }
 }
 
+#[derive(Clone)]
 pub struct Square {
     pub freq: f64,
 }
@@ -63,6 +81,7 @@ impl Sampler for Square {
     }
 }
 
+#[derive(Clone)]
 pub struct AmplitudeModulator {
     modulator: Box<dyn Sampler>,
     sampler: Box<dyn Sampler>,
@@ -74,6 +93,7 @@ impl Sampler for AmplitudeModulator {
     }
 }
 
+#[derive(Clone)]
 pub struct InputShiftModulator {
     modulator: Box<dyn Sampler>,
     sampler: Box<dyn Sampler>,
@@ -85,6 +105,7 @@ impl Sampler for InputShiftModulator {
     }
 }
 
+#[derive(Clone)]
 pub struct InputGainModulator {
     modulator: Box<dyn Sampler>,
     sampler: Box<dyn Sampler>,
@@ -96,11 +117,45 @@ impl Sampler for InputGainModulator {
     }
 }
 
+#[derive(Clone)]
 pub struct Compound {
     pub samplers: Vec<(f64, Box<dyn Sampler>)>,
 }
 
 impl Compound {
+    pub fn reverb(sampler: Box<dyn Sampler>, count: usize, pow: f64, length: f64) -> Self {
+        Compound {
+            samplers: (0..count)
+                .into_iter()
+                .map(|i| -> (f64, Box<dyn Sampler>) {
+                    (
+                        pow.powf(i as f64),
+                        Box::new(Shift {
+                            shift: -(i as f64 / count as f64 * length),
+                            sampler: sampler.clone(),
+                        }),
+                    )
+                })
+                .collect(),
+        }
+    }
+
+    pub fn unison<F>(pitch: f64, count: usize, creator: F) -> Self
+    where
+        F: Fn(f64) -> Box<dyn Sampler>,
+    {
+        if count % 2 == 0 {
+            panic!("Not supported!");
+        }
+        let pows = -(count as isize / 2)..(count as isize / 2 + 1);
+        Compound {
+            samplers: pows
+                .into_iter()
+                .map(|p| pitch * 2f64.powf(p as f64))
+                .map(|f| (1.0, creator(f)))
+                .collect(),
+        }
+    }
     pub fn play(events: Vec<(f64, Box<dyn Sampler>)>) -> Self {
         Compound {
             samplers: events
@@ -133,6 +188,7 @@ fn interpolate(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> f64 {
     (y2 - y1) / (x2 - x1) * (x - x1) + y1
 }
 
+#[derive(Clone)]
 pub struct ADSR {
     pub attack_length: f64,
     pub decay_length: f64,
@@ -181,6 +237,7 @@ impl Sampler for ADSR {
     }
 }
 
+#[derive(Clone)]
 pub struct Shift {
     pub shift: f64,
     pub sampler: Box<dyn Sampler>,
@@ -192,6 +249,7 @@ impl Sampler for Shift {
     }
 }
 
+#[derive(Clone)]
 pub struct Gain {
     pub gain: f64,
     pub sampler: Box<dyn Sampler>,
@@ -213,33 +271,24 @@ impl Instrument for DummyInstrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
         Box::new(Gain {
             sampler: Box::new(ADSR {
-                sampler: Box::new(InputShiftModulator {
-                    sampler: Box::new(AmplitudeModulator {
-                        sampler: Box::new(Compound {
-                            samplers: vec![
-                                (0.3, Box::new(Square { freq: note * 4.0 })),
-                                (0.3, Box::new(Sine { freq: note / 2.0 })),
-                                (0.1, Box::new(Sine { freq: note * 2.0 })),
-                                (0.1, Box::new(Square { freq: note / 4.0 })),
-                            ],
-                        }),
-                        modulator: Box::new(Move {
-                            sampler: Box::new(Sine { freq: 4.0 }),
-                            low: 0.3,
-                            high: 1.0,
-                        }),
+                sampler: Box::new(AmplitudeModulator {
+                    sampler: Box::new(Compound {
+                        samplers: vec![(
+                            0.1,
+                            Box::new(Compound::unison(note, 7, |f| Box::new(Sine { freq: f }))),
+                        )],
                     }),
                     modulator: Box::new(Move {
-                        sampler: Box::new(Sine { freq: 10.0 }),
-                        low: -0.0003,
-                        high: 0.0003,
+                        sampler: Box::new(Sine { freq: 4.0 }),
+                        low: 0.3,
+                        high: 1.0,
                     }),
                 }),
-                attack_length: 0.05,
-                decay_length: 0.05,
-                sustain_length: length,
-                release_length: 2.0,
-                sustain_level: 0.1,
+                attack_length: 0.5,
+                decay_length: length / 3.0,
+                sustain_length: length / 3.0,
+                release_length: length / 3.0,
+                sustain_level: 0.5,
             }),
             gain: volume,
         })
@@ -292,11 +341,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut length = 1;
     let mut tempo = 80;
     let mut volume = 120;
-    for subsong_text in STAIRWAY_TO_HEAVEN
-        .replace("#", "+")
-        .to_lowercase()
-        .split(",")
-    {
+    for subsong_text in AIR_ON_G_STRING.replace("#", "+").to_lowercase().split(",") {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
