@@ -43,6 +43,35 @@ impl Sampler for Const {
 }
 
 #[derive(Clone)]
+pub struct Record {
+    pub sample_rate: f64,
+    pub samples: Vec<f64>,
+}
+
+impl Record {
+    fn record(sampler: Box<dyn Sampler>, sample_rate: f64, duration: f64) -> Self {
+        let mut samples = Vec::new();
+        let mut t = 0f64;
+        let step = 1f64 / sample_rate;
+        for i in 0..(duration * sample_rate) as usize {
+            samples.push(sampler.sample(t));
+            t += step;
+        }
+        Self {
+            sample_rate,
+            samples,
+        }
+    }
+}
+
+impl Sampler for Record {
+    fn sample(&self, t: f64) -> f64 {
+        let ind = (t * self.sample_rate) as usize;
+        *self.samples.get(ind).unwrap_or(&0f64)
+    }
+}
+
+#[derive(Clone)]
 pub struct Sine {
     pub freq: f64,
 }
@@ -460,9 +489,12 @@ fn main() -> Result<(), std::io::Error> {
         subsongs.push((0.0, Box::new(Compound::play(music))))
     }
 
-    let music = Compound::play(subsongs);
+    let music = Box::new(Compound::play(subsongs));
 
     const SAMPLE_RATE: usize = 44100;
+
+    let music = Record::record(music, SAMPLE_RATE as f64, 10.0);
+
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
     let mut t = 0f64;
     loop {
