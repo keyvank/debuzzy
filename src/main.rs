@@ -59,12 +59,24 @@ fn on_octave(note: f64, octave: u8) -> f64 {
 
 pub trait Sampler: DynClone + Send + Sync {
     fn sample(&self, t: f64) -> f64;
-    fn integral(&self, t: f64) -> f64 {
+    fn integral(&self) -> Box<dyn Sampler> {
         unimplemented!();
     }
 }
 
 dyn_clone::clone_trait_object!(Sampler);
+
+#[derive(Clone)]
+pub struct Line {
+    pub start: f64,
+    pub coeff: f64,
+}
+
+impl Sampler for Line {
+    fn sample(&self, t: f64) -> f64 {
+        self.start + t * self.coeff
+    }
+}
 
 #[derive(Clone)]
 pub struct Const {
@@ -75,8 +87,11 @@ impl Sampler for Const {
     fn sample(&self, _t: f64) -> f64 {
         self.val
     }
-    fn integral(&self, t: f64) -> f64 {
-        self.val * t
+    fn integral(&self) -> Box<dyn Sampler> {
+        Box::new(Line {
+            start: 0.0,
+            coeff: self.val,
+        })
     }
 }
 
@@ -88,17 +103,14 @@ pub struct Record {
 
 impl Record {
     fn record(sampler: Box<dyn Sampler>, sample_rate: f64, duration: f64) -> Self {
-        let mut samples = Vec::new();
-        let mut t = 0f64;
         let step = 1f64 / sample_rate;
-        for i in 0..(duration * sample_rate) as usize {
-            samples.push(sampler.sample(t));
-            t += step;
-        }
 
         Self {
             sample_rate,
-            samples,
+            samples: (0..(duration * sample_rate) as usize)
+                .into_par_iter()
+                .map(|i| sampler.sample(i as f64 * step))
+                .collect(),
         }
     }
     fn apply_filter(&mut self, filter_fft: &Vec<Complex<f64>>) {
@@ -137,9 +149,11 @@ impl Sampler for Sine {
     fn sample(&self, t: f64) -> f64 {
         (t * 2.0 * std::f64::consts::PI * self.freq).sin()
     }
-    fn integral(&self, t: f64) -> f64 {
-        -(t * 2.0 * std::f64::consts::PI * self.freq).cos()
-            / (self.freq * 2.0 * std::f64::consts::PI)
+    fn integral(&self) -> Box<dyn Sampler> {
+        Box::new(Gain {
+            sampler: Box::new(self.clone()),
+            gain: 1.0 / (self.freq * 2.0 * std::f64::consts::PI),
+        })
     }
 }
 
@@ -166,8 +180,19 @@ impl Sampler for Move {
     fn sample(&self, t: f64) -> f64 {
         (self.sampler.sample(t) + 1.0) / 2.0 * (self.high - self.low) + self.low
     }
-    fn integral(&self, t: f64) -> f64 {
-        (self.high - self.low) * self.sampler.integral(t) / 2.0 - (self.high - 1.0) * t / 2.0 + t
+    fn integral(&self) -> Box<dyn Sampler> {
+        Box::new(Compound {
+            samplers: vec![
+                ((self.high - self.low) / 2.0, self.sampler.integral()),
+                (
+                    1.0,
+                    Box::new(Line {
+                        start: 0.0,
+                        coeff: -(self.high - 3.0) / 2.0,
+                    }),
+                ),
+            ],
+        })
     }
 }
 
@@ -212,13 +237,13 @@ impl Sampler for InputShiftModulator {
 
 #[derive(Clone)]
 pub struct FrequencyModulator {
-    frequency: Box<dyn Sampler>,
+    frequency_integral: Box<dyn Sampler>,
     sampler: Box<dyn Sampler>,
 }
 
 impl Sampler for FrequencyModulator {
     fn sample(&self, t: f64) -> f64 {
-        self.sampler.sample(self.frequency.integral(t))
+        self.sampler.sample(self.frequency_integral.sample(t))
     }
 }
 
@@ -432,10 +457,18 @@ impl Instrument for DummyInstrument {
             decay_length: length,
             sustain_length: 0.0,
             release_length: 0.1,
-            sustain_level: 1.0,
+            sustain_level: 0.1,
         });
         Box::new(Gain {
-            sampler: snd,
+            sampler: Box::new(FrequencyModulator {
+                sampler: snd,
+                frequency_integral: Move {
+                    sampler: Box::new(Sine { freq: 5.0 }),
+                    low: 1.05,
+                    high: 1.10,
+                }
+                .integral(),
+            }),
             gain: 0.1,
         })
     }
@@ -562,7 +595,7 @@ fn main() -> Result<(), std::io::Error> {
 
     const SAMPLE_RATE: usize = 44100;
 
-    //let music = Record::record(music, SAMPLE_RATE as f64, 40.0);
+    let music = Record::record(music, SAMPLE_RATE as f64, 40.0);
     //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
