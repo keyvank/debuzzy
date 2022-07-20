@@ -553,8 +553,8 @@ fn main() -> Result<(), std::io::Error> {
 
     const SAMPLE_RATE: usize = 44100;
 
-    let mut music = Record::record(music, SAMPLE_RATE as f64, 40.0);
-    music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
+    let music = Record::record(music, SAMPLE_RATE as f64, 40.0);
+    //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
     let mut t = 0f64;
