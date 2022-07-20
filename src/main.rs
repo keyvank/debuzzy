@@ -500,6 +500,25 @@ pub trait Instrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler>;
 }
 
+
+struct Drum;
+
+impl Instrument for Drum {
+    fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
+        let snd = Box::new(AmplitudeModulator {
+            sampler: Box::new(Sawtooth { freq: note/32.0 }),
+            amplitude: Box::new(Compound::adsr(0.1, 0.1, 0.0, 0.1, 0.1)),
+        });
+        Box::new(Gain {
+            sampler: Box::new(FrequencyModulator {
+                sampler: snd,
+                frequency_integral: Compound::adsr(0.05, 1.0, 0.05, 0.05, 0.1).integral(),
+            }),
+            gain: 0.2,
+        })
+    }
+}
+
 struct DummyInstrument;
 
 impl Instrument for DummyInstrument {
@@ -595,7 +614,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut length = 1;
     let mut tempo = 80;
     let mut volume = 120;
-    for subsong_text in CREEP_RADIOHEAD.replace("#", "+").to_lowercase().split(",") {
+    for subsong_text in SMOKE_ON_THE_WATER.replace("#", "+").to_lowercase().split(",") {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
@@ -627,7 +646,7 @@ fn main() -> Result<(), std::io::Error> {
                         let l =
                             320.0 / (tempo as f64) / cap[2].parse::<f64>().unwrap_or(length as f64)
                                 * if dotted { 1.5 } else { 1.0 };
-                        music.push((time, DummyInstrument::play(freq, l, volume as f64 / 200.0)));
+                        music.push((time, Drum::play(freq, l, volume as f64 / 200.0)));
                         time += l;
                     }
                 }
@@ -640,7 +659,7 @@ fn main() -> Result<(), std::io::Error> {
 
     const SAMPLE_RATE: usize = 44100;
 
-    let music = Record::record(music, SAMPLE_RATE as f64, 40.0);
+    let mut music = Record::record(music, SAMPLE_RATE as f64, 40.0);
     //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
