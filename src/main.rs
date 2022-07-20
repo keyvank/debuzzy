@@ -67,14 +67,70 @@ pub trait Sampler: DynClone + Send + Sync {
 dyn_clone::clone_trait_object!(Sampler);
 
 #[derive(Clone)]
+pub struct Quadratic {
+    pub a0: f64,
+    pub a1: f64,
+    pub a2: f64,
+}
+
+impl Sampler for Quadratic {
+    fn sample(&self, t: f64) -> f64 {
+        t * t * self.a2 + t * self.a1 + self.a2
+    }
+}
+
+#[derive(Clone)]
 pub struct Line {
     pub start: f64,
     pub coeff: f64,
 }
 
+impl Line {
+    fn interpolate(a: (f64, f64), b: (f64, f64)) -> Line {
+        let coeff = (b.1 - a.1) / (b.0 - a.0);
+        let start = a.1 - a.0 * coeff;
+        Line { coeff, start }
+    }
+}
+
 impl Sampler for Line {
     fn sample(&self, t: f64) -> f64 {
         self.start + t * self.coeff
+    }
+    fn integral(&self) -> Box<dyn Sampler> {
+        Box::new(Quadratic {
+            a0: 0.0,
+            a1: self.start,
+            a2: self.coeff / 2.0,
+        })
+    }
+}
+
+#[derive(Clone)]
+pub struct Limit {
+    pub sampler: Box<dyn Sampler>,
+    pub start: f64,
+    pub end: f64,
+}
+
+impl Sampler for Limit {
+    fn sample(&self, t: f64) -> f64 {
+        if t >= self.start && t <= self.end {
+            self.sampler.sample(t)
+        } else {
+            0.0
+        }
+    }
+    fn integral(&self) -> Box<dyn Sampler> {
+        let int = self.sampler.integral();
+        let s0 = int.sample(self.start);
+        Box::new(Limit {
+            sampler: Box::new(Compound {
+                samplers: vec![(1.0, int), (-1.0, Box::new(Const { val: s0 }))],
+            }),
+            start: self.start,
+            end: self.end,
+        })
     }
 }
 
@@ -253,20 +309,57 @@ pub struct Compound {
 }
 
 impl Compound {
-    pub fn reverb(sampler: Box<dyn Sampler>, count: usize, pow: f64, length: f64) -> Self {
+    pub fn adsr(
+        attack_length: f64,
+        decay_length: f64,
+        sustain_length: f64,
+        release_length: f64,
+        sustain_level: f64,
+    ) -> Self {
         Compound {
-            samplers: (0..count)
-                .into_iter()
-                .map(|i| -> (f64, Box<dyn Sampler>) {
-                    (
-                        pow.powf(i as f64),
-                        Box::new(Shift {
-                            shift: -(i as f64 / count as f64 * length),
-                            sampler: sampler.clone(),
-                        }),
-                    )
-                })
-                .collect(),
+            samplers: vec![
+                (
+                    1.0,
+                    Box::new(Limit {
+                        sampler: Box::new(Line::interpolate((0.0, 0.0), (attack_length, 1.0))),
+                        start: 0.0,
+                        end: attack_length,
+                    }),
+                ),
+                (
+                    1.0,
+                    Box::new(Limit {
+                        sampler: Box::new(Line::interpolate(
+                            (attack_length, 1.0),
+                            (attack_length + decay_length, sustain_level),
+                        )),
+                        start: attack_length,
+                        end: attack_length + decay_length,
+                    }),
+                ),
+                (
+                    1.0,
+                    Box::new(Limit {
+                        sampler: Box::new(Const { val: sustain_level }),
+                        start: attack_length + decay_length,
+                        end: attack_length + decay_length + sustain_length,
+                    }),
+                ),
+                (
+                    1.0,
+                    Box::new(Limit {
+                        sampler: Box::new(Line::interpolate(
+                            (attack_length + decay_length + sustain_length, sustain_level),
+                            (
+                                attack_length + decay_length + sustain_length + release_length,
+                                0.0,
+                            ),
+                        )),
+                        start: attack_length + decay_length + sustain_length,
+                        end: attack_length + decay_length + sustain_length + release_length,
+                    }),
+                ),
+            ],
         }
     }
 
@@ -312,59 +405,19 @@ impl Sampler for Compound {
         }
         s
     }
+    fn integral(&self) -> Box<dyn Sampler> {
+        Box::new(Compound {
+            samplers: self
+                .samplers
+                .iter()
+                .map(|(c, s)| (*c, s.integral()))
+                .collect(),
+        })
+    }
 }
 
 fn interpolate(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> f64 {
     (y2 - y1) / (x2 - x1) * (x - x1) + y1
-}
-
-#[derive(Clone)]
-pub struct ADSR {
-    pub attack_length: f64,
-    pub decay_length: f64,
-    pub sustain_length: f64,
-    pub release_length: f64,
-    pub sustain_level: f64,
-    pub sampler: Box<dyn Sampler>,
-}
-
-impl Sampler for ADSR {
-    fn sample(&self, t: f64) -> f64 {
-        if t < 0.0 {
-            0.0
-        } else if t < self.attack_length {
-            self.sampler.sample(t) * interpolate(0.0, 0.0, self.attack_length, 1.0, t)
-        } else if t < self.attack_length + self.decay_length {
-            self.sampler.sample(t)
-                * interpolate(
-                    self.attack_length,
-                    1.0,
-                    self.attack_length + self.decay_length,
-                    self.sustain_level,
-                    t,
-                )
-        } else if t < self.attack_length + self.decay_length + self.sustain_length {
-            self.sampler.sample(t) * self.sustain_level
-        } else if t < self.attack_length
-            + self.decay_length
-            + self.sustain_length
-            + self.release_length
-        {
-            self.sampler.sample(t)
-                * interpolate(
-                    self.attack_length + self.decay_length + self.sustain_length,
-                    self.sustain_level,
-                    self.attack_length
-                        + self.decay_length
-                        + self.sustain_length
-                        + self.release_length,
-                    0.0,
-                    t,
-                )
-        } else {
-            0.0
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -451,13 +504,9 @@ struct DummyInstrument;
 
 impl Instrument for DummyInstrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
-        let snd = Box::new(ADSR {
+        let snd = Box::new(AmplitudeModulator {
             sampler: Box::new(Sawtooth { freq: note }),
-            attack_length: 0.1,
-            decay_length: length,
-            sustain_length: 0.0,
-            release_length: 0.1,
-            sustain_level: 0.1,
+            amplitude: Box::new(Compound::adsr(0.1, length, 0.0, 0.1, 0.1)),
         });
         Box::new(Gain {
             sampler: Box::new(FrequencyModulator {
@@ -479,7 +528,7 @@ struct LegitInstrument;
 impl Instrument for LegitInstrument {
     fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
         Box::new(Gain {
-            sampler: Box::new(ADSR {
+            sampler: Box::new(AmplitudeModulator {
                 sampler: Box::new(AmplitudeModulator {
                     sampler: Box::new(Compound {
                         samplers: vec![(
@@ -493,11 +542,7 @@ impl Instrument for LegitInstrument {
                         high: 1.0,
                     }),
                 }),
-                attack_length: 0.1,
-                decay_length: 0.1,
-                sustain_length: 0.0,
-                release_length: 0.1,
-                sustain_level: 1.0,
+                amplitude: Box::new(Compound::adsr(0.1, length, 0.0, 0.1, 0.1)),
             }),
             gain: volume,
         })
