@@ -59,6 +59,9 @@ fn on_octave(note: f64, octave: u8) -> f64 {
 
 pub trait Sampler: DynClone + Send + Sync {
     fn sample(&self, t: f64) -> f64;
+    fn integral(&self, t: f64) -> f64 {
+        unimplemented!();
+    }
 }
 
 dyn_clone::clone_trait_object!(Sampler);
@@ -71,6 +74,9 @@ pub struct Const {
 impl Sampler for Const {
     fn sample(&self, _t: f64) -> f64 {
         self.val
+    }
+    fn integral(&self, t: f64) -> f64 {
+        self.val * t
     }
 }
 
@@ -131,6 +137,10 @@ impl Sampler for Sine {
     fn sample(&self, t: f64) -> f64 {
         (t * 2.0 * std::f64::consts::PI * self.freq).sin()
     }
+    fn integral(&self, t: f64) -> f64 {
+        -(t * 2.0 * std::f64::consts::PI * self.freq).cos()
+            / (self.freq * 2.0 * std::f64::consts::PI)
+    }
 }
 
 #[derive(Clone)]
@@ -156,6 +166,9 @@ impl Sampler for Move {
     fn sample(&self, t: f64) -> f64 {
         (self.sampler.sample(t) + 1.0) / 2.0 * (self.high - self.low) + self.low
     }
+    fn integral(&self, t: f64) -> f64 {
+        (self.high - self.low) * self.sampler.integral(t) / 2.0 - (self.high - 1.0) * t / 2.0 + t
+    }
 }
 
 #[derive(Clone)]
@@ -175,13 +188,13 @@ impl Sampler for Square {
 
 #[derive(Clone)]
 pub struct AmplitudeModulator {
-    modulator: Box<dyn Sampler>,
+    amplitude: Box<dyn Sampler>,
     sampler: Box<dyn Sampler>,
 }
 
 impl Sampler for AmplitudeModulator {
     fn sample(&self, t: f64) -> f64 {
-        self.sampler.sample(t) * self.modulator.sample(t)
+        self.sampler.sample(t) * self.amplitude.sample(t)
     }
 }
 
@@ -198,14 +211,14 @@ impl Sampler for InputShiftModulator {
 }
 
 #[derive(Clone)]
-pub struct InputGainModulator {
-    modulator: Box<dyn Sampler>,
+pub struct FrequencyModulator {
+    frequency: Box<dyn Sampler>,
     sampler: Box<dyn Sampler>,
 }
 
-impl Sampler for InputGainModulator {
+impl Sampler for FrequencyModulator {
     fn sample(&self, t: f64) -> f64 {
-        self.sampler.sample(t * self.modulator.sample(t))
+        self.sampler.sample(self.frequency.integral(t))
     }
 }
 
@@ -416,14 +429,14 @@ impl Instrument for DummyInstrument {
         let snd = Box::new(ADSR {
             sampler: Box::new(Sawtooth { freq: note }),
             attack_length: 0.1,
-            decay_length: 0.1,
+            decay_length: length,
             sustain_length: 0.0,
             release_length: 0.1,
             sustain_level: 1.0,
         });
         Box::new(Gain {
             sampler: snd,
-            gain: 0.5,
+            gain: 0.1,
         })
     }
 }
@@ -441,7 +454,7 @@ impl Instrument for LegitInstrument {
                             Box::new(Compound::unison(note, 7, |f| Box::new(Sine { freq: f }))),
                         )],
                     }),
-                    modulator: Box::new(Move {
+                    amplitude: Box::new(Move {
                         sampler: Box::new(Sine { freq: 4.0 }),
                         low: 0.3,
                         high: 1.0,
@@ -504,11 +517,7 @@ fn main() -> Result<(), std::io::Error> {
     let mut length = 1;
     let mut tempo = 80;
     let mut volume = 120;
-    for subsong_text in SMOKE_ON_THE_WATER
-        .replace("#", "+")
-        .to_lowercase()
-        .split(",")
-    {
+    for subsong_text in CREEP_RADIOHEAD.replace("#", "+").to_lowercase().split(",") {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
@@ -553,7 +562,7 @@ fn main() -> Result<(), std::io::Error> {
 
     const SAMPLE_RATE: usize = 44100;
 
-    let music = Record::record(music, SAMPLE_RATE as f64, 40.0);
+    //let music = Record::record(music, SAMPLE_RATE as f64, 40.0);
     //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
