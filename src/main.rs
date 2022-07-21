@@ -439,13 +439,12 @@ impl Sampler for Compound {
         s
     }
     fn integral(&self) -> DynSampler {
-        Box::new(Compound {
-            samplers: self
-                .samplers
+        Compound::new(
+            self.samplers
                 .iter()
                 .map(|(c, s)| (*c, s.integral()))
                 .collect(),
-        })
+        )
     }
 }
 
