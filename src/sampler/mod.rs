@@ -12,6 +12,7 @@ mod sawtooth;
 mod shift;
 mod sine;
 mod square;
+mod triangle;
 mod window;
 
 pub use ampmod::*;
@@ -28,6 +29,7 @@ pub use sawtooth::*;
 pub use shift::*;
 pub use sine::*;
 pub use square::*;
+pub use triangle::*;
 pub use window::*;
 
 use dyn_clone::DynClone;
