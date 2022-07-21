@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone)]
 pub struct Square {
-    pub freq: f64,
+    freq: f64,
 }
 
 impl Square {

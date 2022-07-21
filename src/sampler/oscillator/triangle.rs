@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone)]
 pub struct Triangle {
-    pub freq: f64,
+    freq: f64,
 }
 
 impl Triangle {

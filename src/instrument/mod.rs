@@ -13,7 +13,7 @@ impl Instrument for Drum {
             Compound::adsr(0.1, 0.1, 0.0, 0.1, 0.1),
         );
         Gain::new(
-            FrequencyModulator::new(snd, Compound::adsr(0.05, 1.0, 0.05, 0.05, 0.1).integral()),
+            FrequencyModulator::new(snd, Compound::adsr(0.05, 1.0, 0.05, 0.05, 0.1)),
             0.2 * volume,
         )
     }
@@ -28,7 +28,7 @@ impl Instrument for DummyInstrument {
             Compound::adsr(0.1, length, 0.0, 0.1, 0.1),
         );
         Gain::new(
-            FrequencyModulator::new(snd, Window::new(Sine::new(5.0), 1.05, 1.10).integral()),
+            FrequencyModulator::new(snd, Window::new(Sine::new(5.0), 1.05, 1.10)),
             0.1 * volume,
         )
     }

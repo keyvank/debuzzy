@@ -7,10 +7,10 @@ pub struct FrequencyModulator {
 }
 
 impl FrequencyModulator {
-    pub fn new(sampler: DynSampler, frequency_integral: DynSampler) -> DynSampler {
+    pub fn new(sampler: DynSampler, frequency: DynSampler) -> DynSampler {
         Box::new(FrequencyModulator {
             sampler,
-            frequency_integral,
+            frequency_integral: frequency.integral(),
         })
     }
 }
