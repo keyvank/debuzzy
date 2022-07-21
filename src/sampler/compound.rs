@@ -80,7 +80,7 @@ impl Compound {
         Compound::new(
             events
                 .into_iter()
-                .map(|(d, s)| -> (f64, DynSampler) { (1.0, Shift::new(s, -d)) })
+                .map(|(d, s)| -> (f64, DynSampler) { (1.0, Delay::new(s, d)) })
                 .collect(),
         )
     }
