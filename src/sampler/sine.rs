@@ -1,4 +1,5 @@
 use super::*;
+
 #[derive(Clone)]
 pub struct Sine {
     pub freq: f64,

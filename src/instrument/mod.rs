@@ -28,7 +28,7 @@ impl Instrument for DummyInstrument {
             Compound::adsr(0.1, length, 0.0, 0.1, 0.1),
         );
         Gain::new(
-            FrequencyModulator::new(snd, Move::new(Sine::new(5.0), 1.05, 1.10).integral()),
+            FrequencyModulator::new(snd, Window::new(Sine::new(5.0), 1.05, 1.10).integral()),
             0.1,
         )
     }
@@ -42,7 +42,7 @@ impl Instrument for LegitInstrument {
             AmplitudeModulator::new(
                 AmplitudeModulator::new(
                     Compound::new(vec![(0.1, Compound::unison(note, 7, |f| Sine::new(f)))]),
-                    Move::new(Sine::new(4.0), 0.3, 1.0),
+                    Window::new(Sine::new(4.0), 0.3, 1.0),
                 ),
                 Compound::adsr(0.1, length, 0.0, 0.1, 0.1),
             ),
