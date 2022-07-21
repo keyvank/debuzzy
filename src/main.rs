@@ -1,13 +1,6 @@
-mod fft;
-mod filter;
-mod instrument;
-mod mml;
-mod notes;
-mod sampler;
-
-use instrument::*;
-use notes::*;
-use sampler::*;
+use debuzzy::instrument::*;
+use debuzzy::mml;
+use debuzzy::sampler::*;
 use std::io::Write;
 
 fn out(sample: f64) -> Result<(), std::io::Error> {
@@ -19,8 +12,11 @@ fn out(sample: f64) -> Result<(), std::io::Error> {
 fn main() -> Result<(), std::io::Error> {
     const SAMPLE_RATE: usize = 44100;
 
-    let music = mml::play::<DummyInstrument>(mml::AIR_ON_G_STRING);
-    let mut music = Record::record(music, SAMPLE_RATE as f64, 20.0);
+    let music = Record::record(
+        mml::play::<DummyInstrument>(mml::AIR_ON_G_STRING),
+        SAMPLE_RATE as f64,
+        20.0,
+    );
     //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);

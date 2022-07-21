@@ -1,7 +1,7 @@
 use super::*;
 use crate::fft::*;
 use rayon::prelude::*;
-use rustfft::{num_complex::Complex, FftPlanner};
+use rustfft::num_complex::Complex;
 
 #[derive(Clone)]
 pub struct Record {

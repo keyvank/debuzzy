@@ -1,5 +1,5 @@
 use realfft::RealFftPlanner;
-use rustfft::{num_complex::Complex, FftPlanner};
+use rustfft::num_complex::Complex;
 
 pub fn fft(vals: &[f64]) -> Vec<Complex<f64>> {
     let mut real_planner = RealFftPlanner::<f64>::new();
