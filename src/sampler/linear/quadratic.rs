@@ -15,6 +15,6 @@ impl Quadratic {
 
 impl Sampler for Quadratic {
     fn sample(&self, t: f64) -> f64 {
-        t * t * self.a2 + t * self.a1 + self.a0
+        t * (t * self.a2 + self.a1) + self.a0
     }
 }
