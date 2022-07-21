@@ -64,6 +64,8 @@ pub trait Sampler: DynClone + Send + Sync {
     }
 }
 
+type DynSampler = Box<dyn Sampler>;
+
 dyn_clone::clone_trait_object!(Sampler);
 
 #[derive(Clone)]
@@ -97,7 +99,7 @@ impl Sampler for Line {
     fn sample(&self, t: f64) -> f64 {
         self.start + t * self.coeff
     }
-    fn integral(&self) -> Box<dyn Sampler> {
+    fn integral(&self) -> DynSampler {
         Box::new(Quadratic {
             a0: 0.0,
             a1: self.start,
@@ -108,7 +110,7 @@ impl Sampler for Line {
 
 #[derive(Clone)]
 pub struct Limit {
-    pub sampler: Box<dyn Sampler>,
+    pub sampler: DynSampler,
     pub start: f64,
     pub end: f64,
 }
@@ -121,7 +123,7 @@ impl Sampler for Limit {
             0.0
         }
     }
-    fn integral(&self) -> Box<dyn Sampler> {
+    fn integral(&self) -> DynSampler {
         let int = self.sampler.integral();
         let s0 = int.sample(self.start);
         Box::new(Limit {
@@ -143,7 +145,7 @@ impl Sampler for Const {
     fn sample(&self, _t: f64) -> f64 {
         self.val
     }
-    fn integral(&self) -> Box<dyn Sampler> {
+    fn integral(&self) -> DynSampler {
         Box::new(Line {
             start: 0.0,
             coeff: self.val,
@@ -158,7 +160,7 @@ pub struct Record {
 }
 
 impl Record {
-    fn record(sampler: Box<dyn Sampler>, sample_rate: f64, duration: f64) -> Self {
+    fn record(sampler: DynSampler, sample_rate: f64, duration: f64) -> Self {
         let step = 1f64 / sample_rate;
 
         Self {
@@ -205,7 +207,7 @@ impl Sampler for Sine {
     fn sample(&self, t: f64) -> f64 {
         (t * 2.0 * std::f64::consts::PI * self.freq).sin()
     }
-    fn integral(&self) -> Box<dyn Sampler> {
+    fn integral(&self) -> DynSampler {
         Box::new(Gain {
             sampler: Box::new(self.clone()),
             gain: 1.0 / (self.freq * 2.0 * std::f64::consts::PI),
@@ -227,7 +229,7 @@ impl Sampler for Sawtooth {
 
 #[derive(Clone)]
 pub struct Move {
-    pub sampler: Box<dyn Sampler>,
+    pub sampler: DynSampler,
     pub low: f64,
     pub high: f64,
 }
@@ -236,7 +238,7 @@ impl Sampler for Move {
     fn sample(&self, t: f64) -> f64 {
         (self.sampler.sample(t) + 1.0) / 2.0 * (self.high - self.low) + self.low
     }
-    fn integral(&self) -> Box<dyn Sampler> {
+    fn integral(&self) -> DynSampler {
         Box::new(Compound {
             samplers: vec![
                 ((self.high - self.low) / 2.0, self.sampler.integral()),
@@ -269,8 +271,8 @@ impl Sampler for Square {
 
 #[derive(Clone)]
 pub struct AmplitudeModulator {
-    amplitude: Box<dyn Sampler>,
-    sampler: Box<dyn Sampler>,
+    amplitude: DynSampler,
+    sampler: DynSampler,
 }
 
 impl Sampler for AmplitudeModulator {
@@ -281,8 +283,8 @@ impl Sampler for AmplitudeModulator {
 
 #[derive(Clone)]
 pub struct InputShiftModulator {
-    modulator: Box<dyn Sampler>,
-    sampler: Box<dyn Sampler>,
+    modulator: DynSampler,
+    sampler: DynSampler,
 }
 
 impl Sampler for InputShiftModulator {
@@ -293,8 +295,8 @@ impl Sampler for InputShiftModulator {
 
 #[derive(Clone)]
 pub struct FrequencyModulator {
-    frequency_integral: Box<dyn Sampler>,
-    sampler: Box<dyn Sampler>,
+    frequency_integral: DynSampler,
+    sampler: DynSampler,
 }
 
 impl Sampler for FrequencyModulator {
@@ -305,7 +307,7 @@ impl Sampler for FrequencyModulator {
 
 #[derive(Clone)]
 pub struct Compound {
-    pub samplers: Vec<(f64, Box<dyn Sampler>)>,
+    pub samplers: Vec<(f64, DynSampler)>,
 }
 
 impl Compound {
@@ -365,7 +367,7 @@ impl Compound {
 
     pub fn unison<F>(pitch: f64, count: usize, creator: F) -> Self
     where
-        F: Fn(f64) -> Box<dyn Sampler>,
+        F: Fn(f64) -> DynSampler,
     {
         if count % 2 == 0 {
             panic!("Not supported!");
@@ -379,11 +381,11 @@ impl Compound {
                 .collect(),
         }
     }
-    pub fn play(events: Vec<(f64, Box<dyn Sampler>)>) -> Self {
+    pub fn play(events: Vec<(f64, DynSampler)>) -> Self {
         Compound {
             samplers: events
                 .into_iter()
-                .map(|(d, s)| -> (f64, Box<dyn Sampler>) {
+                .map(|(d, s)| -> (f64, DynSampler) {
                     (
                         1.0,
                         Box::new(Shift {
@@ -405,7 +407,7 @@ impl Sampler for Compound {
         }
         s
     }
-    fn integral(&self) -> Box<dyn Sampler> {
+    fn integral(&self) -> DynSampler {
         Box::new(Compound {
             samplers: self
                 .samplers
@@ -416,14 +418,10 @@ impl Sampler for Compound {
     }
 }
 
-fn interpolate(x1: f64, y1: f64, x2: f64, y2: f64, x: f64) -> f64 {
-    (y2 - y1) / (x2 - x1) * (x - x1) + y1
-}
-
 #[derive(Clone)]
 pub struct Shift {
     pub shift: f64,
-    pub sampler: Box<dyn Sampler>,
+    pub sampler: DynSampler,
 }
 
 impl Sampler for Shift {
@@ -435,7 +433,7 @@ impl Sampler for Shift {
 #[derive(Clone)]
 pub struct Gain {
     pub gain: f64,
-    pub sampler: Box<dyn Sampler>,
+    pub sampler: DynSampler,
 }
 
 impl Sampler for Gain {
@@ -447,7 +445,7 @@ impl Sampler for Gain {
 #[derive(Clone)]
 pub struct Filter {
     pub step: f64,
-    pub sampler: Box<dyn Sampler>,
+    pub sampler: DynSampler,
 }
 
 lazy_static::lazy_static! {
@@ -466,7 +464,7 @@ lazy_static::lazy_static! {
 }
 
 impl Filter {
-    fn read(sampler: Box<dyn Sampler>, path: &str) -> Self {
+    fn read(sampler: DynSampler, path: &str) -> Self {
         Self {
             sampler,
             step: 1.0 / 44100.0,
@@ -497,16 +495,15 @@ impl Sampler for Impulse {
 }
 
 pub trait Instrument {
-    fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler>;
+    fn play(note: f64, length: f64, volume: f64) -> DynSampler;
 }
-
 
 struct Drum;
 
 impl Instrument for Drum {
-    fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
+    fn play(note: f64, length: f64, volume: f64) -> DynSampler {
         let snd = Box::new(AmplitudeModulator {
-            sampler: Box::new(Sawtooth { freq: note/32.0 }),
+            sampler: Box::new(Sawtooth { freq: note / 32.0 }),
             amplitude: Box::new(Compound::adsr(0.1, 0.1, 0.0, 0.1, 0.1)),
         });
         Box::new(Gain {
@@ -522,7 +519,7 @@ impl Instrument for Drum {
 struct DummyInstrument;
 
 impl Instrument for DummyInstrument {
-    fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
+    fn play(note: f64, length: f64, volume: f64) -> DynSampler {
         let snd = Box::new(AmplitudeModulator {
             sampler: Box::new(Sawtooth { freq: note }),
             amplitude: Box::new(Compound::adsr(0.1, length, 0.0, 0.1, 0.1)),
@@ -545,7 +542,7 @@ impl Instrument for DummyInstrument {
 struct LegitInstrument;
 
 impl Instrument for LegitInstrument {
-    fn play(note: f64, length: f64, volume: f64) -> Box<dyn Sampler> {
+    fn play(note: f64, length: f64, volume: f64) -> DynSampler {
         Box::new(Gain {
             sampler: Box::new(AmplitudeModulator {
                 sampler: Box::new(AmplitudeModulator {
@@ -609,12 +606,16 @@ fn main() -> Result<(), std::io::Error> {
     .into_iter()
     .collect();
 
-    let mut subsongs: Vec<(f64, Box<dyn Sampler>)> = vec![];
+    let mut subsongs: Vec<(f64, DynSampler)> = vec![];
     let mut oct = 4;
     let mut length = 1;
     let mut tempo = 80;
     let mut volume = 120;
-    for subsong_text in SMOKE_ON_THE_WATER.replace("#", "+").to_lowercase().split(",") {
+    for subsong_text in SMOKE_ON_THE_WATER
+        .replace("#", "+")
+        .to_lowercase()
+        .split(",")
+    {
         let re = Regex::new(r"(\D\+?\-?\#?)(\d*)(\.?)").unwrap();
         let mut music = vec![];
         let mut time = 0f64;
@@ -646,7 +647,7 @@ fn main() -> Result<(), std::io::Error> {
                         let l =
                             320.0 / (tempo as f64) / cap[2].parse::<f64>().unwrap_or(length as f64)
                                 * if dotted { 1.5 } else { 1.0 };
-                        music.push((time, Drum::play(freq, l, volume as f64 / 200.0)));
+                        music.push((time, DummyInstrument::play(freq, l, volume as f64 / 200.0)));
                         time += l;
                     }
                 }
@@ -659,7 +660,7 @@ fn main() -> Result<(), std::io::Error> {
 
     const SAMPLE_RATE: usize = 44100;
 
-    let mut music = Record::record(music, SAMPLE_RATE as f64, 40.0);
+    let mut music = Record::record(music, SAMPLE_RATE as f64, 20.0);
     //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     const SAMPLE_RATE_STEP: f64 = 1f64 / (SAMPLE_RATE as f64);
