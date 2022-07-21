@@ -1,23 +1,19 @@
 mod compound;
-mod gain;
-mod impulse;
 mod limit;
 mod linear;
 mod modulator;
 mod oscillator;
 mod record;
-mod shift;
+mod signal;
 mod window;
 
 pub use compound::*;
-pub use gain::*;
-pub use impulse::*;
 pub use limit::*;
 pub use linear::*;
 pub use modulator::*;
 pub use oscillator::*;
 pub use record::*;
-pub use shift::*;
+pub use signal::*;
 pub use window::*;
 
 use dyn_clone::DynClone;
