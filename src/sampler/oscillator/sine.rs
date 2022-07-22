@@ -17,8 +17,8 @@ impl Sampler for Sine {
     }
     fn integral(&self) -> DynSampler {
         Gain::new(
-            Box::new(self.clone()),
-            1.0 / (self.freq * 2.0 * std::f64::consts::PI),
+            Delay::new(Sine::new(self.freq), -std::f64::consts::PI / 2.0),
+            -1.0 / (self.freq * 2.0 * std::f64::consts::PI),
         )
     }
 }
