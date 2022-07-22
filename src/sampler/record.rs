@@ -10,16 +10,16 @@ pub struct Record {
 }
 
 impl Record {
-    pub fn record(sampler: DynSampler, sample_rate: f64, duration: f64) -> Self {
+    pub fn record(sampler: DynSampler, sample_rate: f64, duration: f64) -> DynSampler {
         let step = 1f64 / sample_rate;
 
-        Self {
+        Box::new(Self {
             sample_rate,
             samples: (0..(duration * sample_rate) as usize)
                 .into_par_iter()
                 .map(|i| sampler.sample(i as f64 * step))
                 .collect(),
-        }
+        })
     }
     pub fn apply_filter(&mut self, filter_fft: &Vec<Complex<f64>>) {
         let mut padded = self.samples.clone();
