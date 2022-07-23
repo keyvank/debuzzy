@@ -53,35 +53,25 @@ impl Differentiator {
 }
 
 pub struct MovingAverage {
-    sum: f64,
-    first_val: f64,
+    values: Vec<f64>,
     count: usize,
-    max_count: usize,
 }
 
 impl MovingAverage {
     pub fn new(count: usize) -> Self {
         Self {
-            sum: 0.0,
-            first_val: 0.0,
-            count: 0,
-            max_count: count,
+            values: Vec::new(),
+            count,
         }
     }
 }
 
 impl Filter for MovingAverage {
     fn apply(&mut self, sample: f64) -> f64 {
-        self.sum += sample;
-        if self.count == 0 {
-            self.first_val = sample;
-            self.count += 1;
-        } else if self.count < self.max_count {
-            self.count += 1;
-        } else {
-            self.sum -= self.first_val;
-            self.first_val = sample;
+        self.values.push(sample);
+        while self.values.len() > self.count {
+            self.values.remove(0);
         }
-        self.sum / (self.count as f64)
+        self.values.iter().sum::<f64>() / self.values.len() as f64
     }
 }
