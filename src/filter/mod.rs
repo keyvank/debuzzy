@@ -51,3 +51,37 @@ impl Differentiator {
         Self { value: 0.0 }
     }
 }
+
+pub struct MovingAverage {
+    sum: f64,
+    first_val: f64,
+    count: usize,
+    max_count: usize,
+}
+
+impl MovingAverage {
+    pub fn new(count: usize) -> Self {
+        Self {
+            sum: 0.0,
+            first_val: 0.0,
+            count: 0,
+            max_count: count,
+        }
+    }
+}
+
+impl Filter for MovingAverage {
+    fn apply(&mut self, sample: f64) -> f64 {
+        self.sum += sample;
+        if self.count == 0 {
+            self.first_val = sample;
+            self.count += 1;
+        } else if self.count < self.max_count {
+            self.count += 1;
+        } else {
+            self.sum -= self.first_val;
+            self.first_val = sample;
+        }
+        self.sum / (self.count as f64)
+    }
+}
