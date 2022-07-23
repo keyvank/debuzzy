@@ -26,11 +26,7 @@ impl Player for StdoutPlayer {
 fn main() {
     let duration = 20.0;
 
-    let music = Record::record(
-        mml::play::<DummyInstrument>(mml::AIR_ON_G_STRING),
-        SAMPLE_RATE,
-        duration,
-    );
+    let music = Square::new(80.0, 0.50);
     //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
 
     StdoutPlayer::play(music, SAMPLE_RATE, duration);
