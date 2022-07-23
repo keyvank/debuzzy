@@ -1,3 +1,4 @@
+use debuzzy::filter::*;
 use debuzzy::instrument::*;
 use debuzzy::mml;
 use debuzzy::sampler::*;
@@ -26,8 +27,9 @@ impl Player for StdoutPlayer {
 fn main() {
     let duration = 20.0;
 
-    let music = Square::new(80.0, 0.50);
-    //music.apply_filter(&CONCERT_HALL_FILTER_FFTS);
+    let mut music = Record::record(Sine::new(440.0), SAMPLE_RATE, duration);
+    music.apply_filter(Integrator::new());
+    music.apply_filter(Differentiator::new());
 
-    StdoutPlayer::play(music, SAMPLE_RATE, duration);
+    StdoutPlayer::play(Box::new(music), SAMPLE_RATE, duration);
 }

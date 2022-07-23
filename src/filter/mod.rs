@@ -12,3 +12,42 @@ lazy_static::lazy_static! {
          fft(&v)
      };
 }
+
+pub trait Filter {
+    fn apply(&mut self, sample: f64) -> f64;
+}
+
+pub struct Integrator {
+    value: f64,
+}
+
+impl Integrator {
+    pub fn new() -> Self {
+        Self { value: 0.0 }
+    }
+}
+
+impl Filter for Integrator {
+    fn apply(&mut self, sample: f64) -> f64 {
+        self.value += sample;
+        self.value
+    }
+}
+
+pub struct Differentiator {
+    value: f64,
+}
+
+impl Filter for Differentiator {
+    fn apply(&mut self, sample: f64) -> f64 {
+        let diff = sample - self.value;
+        self.value = sample;
+        diff
+    }
+}
+
+impl Differentiator {
+    pub fn new() -> Self {
+        Self { value: 0.0 }
+    }
+}
