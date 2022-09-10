@@ -25,11 +25,5 @@ impl Player for StdoutPlayer {
 }
 
 fn main() {
-    let duration = 20.0;
-
-    let mut music = Record::record(Sine::new(440.0), SAMPLE_RATE, duration);
-    music.apply_filter(Integrator::new());
-    music.apply_filter(Differentiator::new());
-
-    StdoutPlayer::play(Box::new(music), SAMPLE_RATE, duration);
+    StdoutPlayer::play(mml::play::<LegitInstrument>(mml::MARIO), SAMPLE_RATE, 100.0);
 }
