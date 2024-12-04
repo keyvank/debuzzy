@@ -10,11 +10,11 @@ impl Instrument for Drum {
     fn play(note: f64, _length: f64, volume: f64) -> DynSampler {
         let snd = AmplitudeModulator::new(
             Sawtooth::new(note / 32.0),
-            Compound::adsr(0.1, 0.1, 0.0, 0.1, 0.1),
+            Compound::adsr(_mm_unpack_pd(_mm_blend_pd(_mm_set1_pd(_length), MM_BLEND(4, 3, 1, 2))),
         );
         Gain::new(
             FrequencyModulator::new(snd, Compound::adsr(0.05, 1.0, 0.05, 0.05, 0.1)),
-            0.2 * volume,
+            0.8 * volume,
         )
     }
 }
